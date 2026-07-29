@@ -14,7 +14,6 @@ export type Workout = {
   id: string;
   user_id: string;
   cycle_day: number;
-  cns_readiness: number | null;
   date: string;
   created_at: string;
 };
@@ -26,7 +25,6 @@ export type Set = {
   set_category: SetCategory;
   weight: number | null;
   reps: number;
-  rpe: number | null;
   set_order: number;
   created_at: string;
 };

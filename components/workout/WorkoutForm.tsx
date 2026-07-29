@@ -1,9 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
-import { Button } from "@/components/ui/Button";
-import { CnsReadinessInput } from "@/components/workout/CnsReadinessInput";
 import { ExerciseBlock } from "@/components/workout/ExerciseBlock";
 import type { LocalSet } from "@/components/workout/SetRow";
 import {
@@ -29,7 +27,6 @@ function toLocalSet(set: DbSet): LocalSet {
     set_category: set.set_category,
     weight: set.weight,
     reps: set.reps,
-    rpe: set.rpe,
     set_order: set.set_order,
     dirty: false,
     saving: false,
@@ -42,7 +39,6 @@ function createEmptySet(setOrder: number): LocalSet {
     set_category: "top_set",
     weight: null,
     reps: 5,
-    rpe: null,
     set_order: setOrder,
     dirty: true,
     saving: false,
@@ -75,24 +71,52 @@ function groupSetsByExercise(
 
 export function WorkoutForm({ initialData }: WorkoutFormProps) {
   const [workout, setWorkout] = useState(initialData.workout);
-  const [cnsReadiness, setCnsReadiness] = useState<number | null>(
-    initialData.workout?.cns_readiness ?? null,
-  );
   const [setsByExercise, setSetsByExercise] = useState(() =>
     groupSetsByExercise(initialData.exercises, initialData.sets),
   );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isPreparingWorkout, setIsPreparingWorkout] = useState(
+    !initialData.workout && initialData.exercises.length > 0,
+  );
   const [isPending, startTransition] = useTransition();
 
-  const cnsLocked = workout?.cns_readiness != null;
-  const canLogSets = Boolean(workout?.id) && cnsLocked;
+  const canLogSets = Boolean(workout?.id);
 
   const exerciseCount = initialData.exercises.length;
   const totalSets = useMemo(
     () => Object.values(setsByExercise).reduce((sum, sets) => sum + sets.length, 0),
     [setsByExercise],
   );
+
+  useEffect(() => {
+    if (workout || initialData.exercises.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    setIsPreparingWorkout(true);
+
+    (async () => {
+      const result = await upsertWorkout({ cycleDay: initialData.cycleDay });
+
+      if (cancelled) return;
+
+      if (result.error || !result.workout) {
+        setErrorMessage(result.error ?? "Failed to start today's workout.");
+        setIsPreparingWorkout(false);
+        return;
+      }
+
+      setWorkout(result.workout);
+      setIsPreparingWorkout(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function updateExerciseSets(
     exerciseId: string,
@@ -102,31 +126,6 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
       ...current,
       [exerciseId]: updater(current[exerciseId] ?? []),
     }));
-  }
-
-  function handleConfirmCns() {
-    if (cnsReadiness === null) {
-      setErrorMessage("Select a CNS readiness score first.");
-      return;
-    }
-
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    startTransition(async () => {
-      const result = await upsertWorkout({
-        cycleDay: initialData.cycleDay,
-        cnsReadiness,
-      });
-
-      if (result.error || !result.workout) {
-        setErrorMessage(result.error ?? "Failed to save CNS readiness.");
-        return;
-      }
-
-      setWorkout(result.workout);
-      setStatusMessage("CNS readiness locked in. You can log sets now.");
-    });
   }
 
   function handleAddSet(exerciseId: string) {
@@ -144,7 +143,7 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
 
   function handleSaveSet(exerciseId: string, localId: string) {
     if (!workout?.id) {
-      setErrorMessage("Confirm CNS readiness before saving sets.");
+      setErrorMessage("Today's workout is still being prepared. Try again in a moment.");
       return;
     }
 
@@ -180,7 +179,6 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
             ? null
             : target.weight,
         reps: target.reps,
-        rpe: target.rpe,
         setOrder: target.set_order,
       });
 
@@ -278,26 +276,9 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
         </p>
       </section>
 
-      <CnsReadinessInput
-        value={cnsReadiness}
-        onChange={setCnsReadiness}
-        disabled={isPending}
-        locked={cnsLocked}
-      />
-
-      {!cnsLocked ? (
-        <Button
-          fullWidth
-          disabled={isPending || cnsReadiness === null}
-          onClick={handleConfirmCns}
-        >
-          {isPending ? "Saving…" : "Confirm readiness & unlock sets"}
-        </Button>
-      ) : null}
-
-      {!canLogSets ? (
+      {isPreparingWorkout ? (
         <p className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900/30 px-4 py-3 text-center text-sm text-zinc-500">
-          Confirm CNS readiness to start logging sets.
+          Preparing today&apos;s workout…
         </p>
       ) : null}
 

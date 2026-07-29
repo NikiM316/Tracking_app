@@ -35,7 +35,7 @@ export function ExerciseBlock({
         <div>
           <h3 className="text-lg font-semibold text-zinc-50">{exercise.name}</h3>
           <p className="mt-1 text-sm text-zinc-400">
-            Log sets with category, reps, and RPE
+            Log sets with category and reps
             {exercise.category === "barbell" ? ", plus weight in kg" : ""}.
           </p>
         </div>

@@ -100,7 +100,6 @@ export async function getTodayWorkoutData(): Promise<TodayWorkoutData> {
 
 type UpsertWorkoutInput = {
   cycleDay: number;
-  cnsReadiness: number;
   workoutDate?: string;
 };
 
@@ -127,7 +126,6 @@ export async function upsertWorkout(
       .from("workouts")
       .update({
         cycle_day: input.cycleDay,
-        cns_readiness: input.cnsReadiness,
       })
       .eq("id", existingWorkout.id)
       .select("*")
@@ -146,7 +144,6 @@ export async function upsertWorkout(
     .insert({
       user_id: userId,
       cycle_day: input.cycleDay,
-      cns_readiness: input.cnsReadiness,
       date: workoutDate,
     })
     .select("*")
@@ -167,7 +164,6 @@ type UpsertSetInput = {
   setCategory: SetCategory;
   weight: number | null;
   reps: number;
-  rpe: number | null;
   setOrder: number;
 };
 
@@ -182,7 +178,6 @@ export async function upsertSet(
     set_category: input.setCategory,
     weight: input.weight,
     reps: input.reps,
-    rpe: input.rpe,
     set_order: input.setOrder,
   };
 

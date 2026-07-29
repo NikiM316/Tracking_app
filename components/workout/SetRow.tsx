@@ -11,7 +11,6 @@ export type LocalSet = {
   set_category: SetCategory;
   weight: number | null;
   reps: number;
-  rpe: number | null;
   set_order: number;
   dirty?: boolean;
   saving?: boolean;
@@ -62,7 +61,7 @@ export function SetRow({
         }
       />
 
-      <div className={`grid gap-3 ${isCalisthenics ? "grid-cols-2" : "grid-cols-1 sm:grid-cols-3"}`}>
+      <div className={`grid gap-3 ${isCalisthenics ? "grid-cols-1" : "grid-cols-2"}`}>
         {!isCalisthenics ? (
           <NumberInput
             label="Weight"
@@ -87,17 +86,6 @@ export function SetRow({
           onChange={(reps) =>
             onChange({ ...set, reps: reps ?? 1, dirty: true })
           }
-        />
-
-        <NumberInput
-          label="RPE"
-          value={set.rpe}
-          min={1}
-          max={10}
-          step={0.5}
-          allowNull
-          disabled={isBusy}
-          onChange={(rpe) => onChange({ ...set, rpe, dirty: true })}
         />
       </div>
 
