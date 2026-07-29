@@ -2,21 +2,18 @@
 
 import { Button } from "@/components/ui/Button";
 import { SetRow, type LocalSet } from "@/components/workout/SetRow";
-import type { ExerciseCategory } from "@/lib/supabase/types";
 
 type SetListProps = {
   sets: LocalSet[];
-  category: ExerciseCategory;
   disabled?: boolean;
   onChangeSet: (localId: string, next: LocalSet) => void;
-  onSaveSet: (localId: string) => void;
+  onSaveSet: (localId: string, setToSave: LocalSet) => void;
   onDeleteSet: (localId: string) => void;
   onAddSet: () => void;
 };
 
 export function SetList({
   sets,
-  category,
   disabled = false,
   onChangeSet,
   onSaveSet,
@@ -35,10 +32,9 @@ export function SetList({
             key={set.localId}
             set={set}
             index={index}
-            category={category}
             disabled={disabled}
             onChange={(next) => onChangeSet(set.localId, next)}
-            onSave={() => onSaveSet(set.localId)}
+            onSave={(setToSave) => onSaveSet(set.localId, setToSave)}
             onDelete={() => onDeleteSet(set.localId)}
           />
         ))

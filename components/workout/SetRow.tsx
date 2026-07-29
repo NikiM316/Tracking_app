@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/Button";
 import { NumberInput } from "@/components/ui/NumberInput";
 import { SetCategoryPicker } from "@/components/workout/SetCategoryPicker";
-import type { ExerciseCategory, SetCategory } from "@/lib/supabase/types";
+import type { SetCategory } from "@/lib/supabase/types";
 
 export type LocalSet = {
   localId: string;
@@ -19,29 +19,39 @@ export type LocalSet = {
 type SetRowProps = {
   set: LocalSet;
   index: number;
-  category: ExerciseCategory;
   disabled?: boolean;
   onChange: (next: LocalSet) => void;
-  onSave: () => void;
+  onSave: (setToSave: LocalSet) => void;
   onDelete: () => void;
 };
 
 export function SetRow({
   set,
   index,
-  category,
   disabled = false,
   onChange,
   onSave,
   onDelete,
 }: SetRowProps) {
-  const isCalisthenics = category === "calisthenics";
   const isBusy = Boolean(set.saving) || disabled;
+
+  function handleCategoryChange(set_category: SetCategory) {
+    const next = { ...set, set_category, dirty: true };
+    onChange(next);
+    onSave(next);
+  }
 
   return (
     <div className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-950/70 p-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-zinc-200">Set {index + 1}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold text-zinc-200">Set {index + 1}</p>
+          {set.saving ? (
+            <span className="text-xs text-emerald-400">Saving…</span>
+          ) : set.id ? (
+            <span className="text-xs text-zinc-500">Saved</span>
+          ) : null}
+        </div>
         <Button
           variant="ghost"
           className="min-h-10 px-2 text-red-300"
@@ -56,25 +66,22 @@ export function SetRow({
       <SetCategoryPicker
         value={set.set_category}
         disabled={isBusy}
-        onChange={(set_category) =>
-          onChange({ ...set, set_category, dirty: true })
-        }
+        onChange={handleCategoryChange}
       />
 
-      <div className={`grid gap-3 ${isCalisthenics ? "grid-cols-1" : "grid-cols-2"}`}>
-        {!isCalisthenics ? (
-          <NumberInput
-            label="Weight"
-            unit="kg"
-            value={set.weight}
-            min={0}
-            max={500}
-            step={2.5}
-            allowNull
-            disabled={isBusy}
-            onChange={(weight) => onChange({ ...set, weight, dirty: true })}
-          />
-        ) : null}
+      <div className="grid grid-cols-2 gap-3">
+        <NumberInput
+          label="Weight"
+          unit="kg"
+          value={set.weight}
+          min={0}
+          max={500}
+          step={2.5}
+          allowNull
+          disabled={isBusy}
+          onChange={(weight) => onChange({ ...set, weight, dirty: true })}
+          onCommit={(weight) => onSave({ ...set, weight, dirty: true })}
+        />
 
         <NumberInput
           label="Reps"
@@ -86,21 +93,11 @@ export function SetRow({
           onChange={(reps) =>
             onChange({ ...set, reps: reps ?? 1, dirty: true })
           }
+          onCommit={(reps) =>
+            onSave({ ...set, reps: reps ?? set.reps, dirty: true })
+          }
         />
       </div>
-
-      {isCalisthenics ? (
-        <p className="text-xs text-zinc-500">Bodyweight movement — weight omitted.</p>
-      ) : null}
-
-      <Button
-        variant="secondary"
-        fullWidth
-        disabled={isBusy || !set.dirty}
-        onClick={onSave}
-      >
-        {set.saving ? "Saving…" : set.id ? "Update set" : "Save set"}
-      </Button>
     </div>
   );
 }

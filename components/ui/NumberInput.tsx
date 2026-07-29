@@ -2,6 +2,7 @@ type NumberInputProps = {
   label: string;
   value: number | null;
   onChange: (value: number | null) => void;
+  onCommit?: (value: number | null) => void;
   min?: number;
   max?: number;
   step?: number;
@@ -15,6 +16,7 @@ export function NumberInput({
   label,
   value,
   onChange,
+  onCommit,
   min = 0,
   max = 999,
   step = 1,
@@ -29,16 +31,24 @@ export function NumberInput({
     return Math.min(max, Math.max(min, next));
   }
 
+  function commit(nextValue: number | null = value) {
+    onCommit?.(nextValue);
+  }
+
   function decrement() {
     if (disabled) return;
     if (allowNull && value === null) return;
     const next = clamp(numericValue - step);
-    onChange(allowNull && next === min && value === min ? null : next);
+    const nextValue = allowNull && next === min && value === min ? null : next;
+    onChange(nextValue);
+    commit(nextValue);
   }
 
   function increment() {
     if (disabled) return;
-    onChange(clamp(numericValue + step));
+    const next = clamp(numericValue + step);
+    onChange(next);
+    commit(next);
   }
 
   function handleInputChange(raw: string) {
@@ -74,6 +84,7 @@ export function NumberInput({
           disabled={disabled}
           value={value ?? ""}
           onChange={(event) => handleInputChange(event.target.value)}
+          onBlur={() => commit(value)}
           className="h-12 w-full min-w-0 rounded-xl border border-zinc-700 bg-zinc-950 text-center text-lg font-semibold text-zinc-50 outline-none focus:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
         />
         <button

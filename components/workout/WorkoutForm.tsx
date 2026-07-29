@@ -141,29 +141,32 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
     );
   }
 
-  function handleSaveSet(exerciseId: string, localId: string) {
+  function handleSaveSet(
+    exerciseId: string,
+    localId: string,
+    setOverride: LocalSet,
+  ) {
     if (!workout?.id) {
       setErrorMessage("Today's workout is still being prepared. Try again in a moment.");
       return;
     }
 
-    const target = (setsByExercise[exerciseId] ?? []).find(
-      (set) => set.localId === localId,
-    );
-
-    if (!target) return;
+    const target = setOverride;
 
     if (target.reps < 1) {
       setErrorMessage("Reps must be at least 1.");
       return;
     }
 
+    if (target.saving) {
+      return;
+    }
+
     setErrorMessage(null);
-    setStatusMessage(null);
 
     updateExerciseSets(exerciseId, (sets) =>
       sets.map((set) =>
-        set.localId === localId ? { ...set, saving: true } : set,
+        set.localId === localId ? { ...target, saving: true } : set,
       ),
     );
 
@@ -173,11 +176,7 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
         workoutId: workout.id,
         exerciseId,
         setCategory: target.set_category,
-        weight:
-          initialData.exercises.find((exercise) => exercise.id === exerciseId)
-            ?.category === "calisthenics"
-            ? null
-            : target.weight,
+        weight: target.weight,
         reps: target.reps,
         setOrder: target.set_order,
       });
@@ -199,7 +198,6 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
             : set,
         ),
       );
-      setStatusMessage("Set saved.");
     });
   }
 
@@ -291,7 +289,9 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
           onChangeSet={(localId, next) =>
             handleChangeSet(exercise.id, localId, next)
           }
-          onSaveSet={(localId) => handleSaveSet(exercise.id, localId)}
+          onSaveSet={(localId, setToSave) =>
+            handleSaveSet(exercise.id, localId, setToSave)
+          }
           onDeleteSet={(localId) => handleDeleteSet(exercise.id, localId)}
           onAddSet={() => handleAddSet(exercise.id)}
         />

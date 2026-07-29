@@ -9,7 +9,7 @@ type ExerciseBlockProps = {
   sets: LocalSet[];
   disabled?: boolean;
   onChangeSet: (localId: string, next: LocalSet) => void;
-  onSaveSet: (localId: string) => void;
+  onSaveSet: (localId: string, setToSave: LocalSet) => void;
   onDeleteSet: (localId: string) => void;
   onAddSet: () => void;
 };
@@ -35,8 +35,7 @@ export function ExerciseBlock({
         <div>
           <h3 className="text-lg font-semibold text-zinc-50">{exercise.name}</h3>
           <p className="mt-1 text-sm text-zinc-400">
-            Log sets with category and reps
-            {exercise.category === "barbell" ? ", plus weight in kg" : ""}.
+            Log sets with category, weight (kg), and reps.
           </p>
         </div>
         <span className="shrink-0 rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-300">
@@ -46,7 +45,6 @@ export function ExerciseBlock({
 
       <SetList
         sets={sets}
-        category={exercise.category}
         disabled={disabled}
         onChangeSet={onChangeSet}
         onSaveSet={onSaveSet}
