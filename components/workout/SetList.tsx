@@ -7,7 +7,6 @@ type SetListProps = {
   sets: LocalSet[];
   disabled?: boolean;
   onChangeSet: (localId: string, next: LocalSet) => void;
-  onSaveSet: (localId: string, setToSave: LocalSet) => void;
   onDeleteSet: (localId: string) => void;
   onAddSet: () => void;
 };
@@ -16,7 +15,6 @@ export function SetList({
   sets,
   disabled = false,
   onChangeSet,
-  onSaveSet,
   onDeleteSet,
   onAddSet,
 }: SetListProps) {
@@ -34,7 +32,6 @@ export function SetList({
             index={index}
             disabled={disabled}
             onChange={(next) => onChangeSet(set.localId, next)}
-            onSave={(setToSave) => onSaveSet(set.localId, setToSave)}
             onDelete={() => onDeleteSet(set.localId)}
           />
         ))

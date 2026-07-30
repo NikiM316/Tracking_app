@@ -14,6 +14,7 @@ export type LocalSet = {
   set_order: number;
   dirty?: boolean;
   saving?: boolean;
+  justSaved?: boolean;
 };
 
 type SetRowProps = {
@@ -21,7 +22,6 @@ type SetRowProps = {
   index: number;
   disabled?: boolean;
   onChange: (next: LocalSet) => void;
-  onSave: (setToSave: LocalSet) => void;
   onDelete: () => void;
 };
 
@@ -30,16 +30,9 @@ export function SetRow({
   index,
   disabled = false,
   onChange,
-  onSave,
   onDelete,
 }: SetRowProps) {
   const isBusy = Boolean(set.saving) || disabled;
-
-  function handleCategoryChange(set_category: SetCategory) {
-    const next = { ...set, set_category, dirty: true };
-    onChange(next);
-    onSave(next);
-  }
 
   return (
     <div className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-950/70 p-4">
@@ -47,10 +40,27 @@ export function SetRow({
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-zinc-200">Set {index + 1}</p>
           {set.saving ? (
-            <span className="text-xs text-emerald-400">Saving…</span>
-          ) : set.id ? (
-            <span className="text-xs text-zinc-500">Saved</span>
-          ) : null}
+            <span className="text-xs font-medium text-emerald-400">Saving…</span>
+          ) : (
+            <span
+              aria-hidden={!set.justSaved}
+              className={`flex items-center gap-1 text-xs font-medium text-emerald-400 transition-opacity duration-700 ${
+                set.justSaved ? "opacity-100" : "opacity-0"
+              }`}
+            >
+              <svg
+                aria-hidden="true"
+                className="h-3.5 w-3.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                viewBox="0 0 24 24"
+              >
+                <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Saved
+            </span>
+          )}
         </div>
         <Button
           variant="ghost"
@@ -66,7 +76,9 @@ export function SetRow({
       <SetCategoryPicker
         value={set.set_category}
         disabled={isBusy}
-        onChange={handleCategoryChange}
+        onChange={(set_category: SetCategory) =>
+          onChange({ ...set, set_category, dirty: true })
+        }
       />
 
       <div className="grid grid-cols-2 gap-3">
@@ -80,7 +92,6 @@ export function SetRow({
           allowNull
           disabled={isBusy}
           onChange={(weight) => onChange({ ...set, weight, dirty: true })}
-          onCommit={(weight) => onSave({ ...set, weight, dirty: true })}
         />
 
         <NumberInput
@@ -92,9 +103,6 @@ export function SetRow({
           disabled={isBusy}
           onChange={(reps) =>
             onChange({ ...set, reps: reps ?? 1, dirty: true })
-          }
-          onCommit={(reps) =>
-            onSave({ ...set, reps: reps ?? set.reps, dirty: true })
           }
         />
       </div>

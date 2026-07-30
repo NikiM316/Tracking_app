@@ -1,6 +1,11 @@
-export type ExerciseCategory = "barbell" | "calisthenics" | "cardio";
+export type ExerciseCategory = "barbell" | "calisthenics" | "cardio" | "mobility";
 
-export type SetCategory = "top_set" | "back_off";
+export type SetCategory =
+  | "warmup"
+  | "top_set"
+  | "back_off"
+  | "working_set"
+  | "zone_2";
 
 export type Exercise = {
   id: string;
@@ -15,6 +20,7 @@ export type Workout = {
   user_id: string;
   cycle_day: number;
   date: string;
+  completed_at: string | null;
   created_at: string;
 };
 
@@ -23,10 +29,19 @@ export type Set = {
   workout_id: string;
   exercise_id: string;
   set_category: SetCategory;
-  weight: number | null;
+  weight_kg: number | null;
   reps: number;
   set_order: number;
   created_at: string;
+};
+
+export type ExerciseNote = {
+  id: string;
+  workout_id: string;
+  exercise_id: string;
+  note: string;
+  created_at: string;
+  updated_at: string;
 };
 
 export type Database = {
@@ -43,9 +58,10 @@ export type Database = {
       };
       workouts: {
         Row: Workout;
-        Insert: Omit<Workout, "id" | "created_at"> & {
+        Insert: Omit<Workout, "id" | "created_at" | "completed_at"> & {
           id?: string;
           created_at?: string;
+          completed_at?: string | null;
         };
         Update: Partial<Omit<Workout, "id">>;
         Relationships: [];
@@ -57,6 +73,16 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<Omit<Set, "id">>;
+        Relationships: [];
+      };
+      exercise_notes: {
+        Row: ExerciseNote;
+        Insert: Omit<ExerciseNote, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<ExerciseNote, "id">>;
         Relationships: [];
       };
     };

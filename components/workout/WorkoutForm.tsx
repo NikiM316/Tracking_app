@@ -1,16 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { Button } from "@/components/ui/Button";
 import { ExerciseBlock } from "@/components/workout/ExerciseBlock";
 import type { LocalSet } from "@/components/workout/SetRow";
+import { WorkoutCompleteSummary } from "@/components/workout/WorkoutCompleteSummary";
 import {
   deleteSet,
+  finishWorkout,
+  upsertExerciseNote,
   upsertSet,
   upsertWorkout,
   type TodayWorkoutData,
 } from "@/lib/actions/workout";
 import type { Set as DbSet } from "@/lib/supabase/types";
+
+const SAVE_DEBOUNCE_MS = 3000;
+const SAVE_FLASH_MS = 3800;
 
 type WorkoutFormProps = {
   initialData: TodayWorkoutData;
@@ -25,7 +32,7 @@ function toLocalSet(set: DbSet): LocalSet {
     localId: set.id,
     id: set.id,
     set_category: set.set_category,
-    weight: set.weight,
+    weight: set.weight_kg,
     reps: set.reps,
     set_order: set.set_order,
     dirty: false,
@@ -74,14 +81,37 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
   const [setsByExercise, setSetsByExercise] = useState(() =>
     groupSetsByExercise(initialData.exercises, initialData.sets),
   );
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [notesByExercise, setNotesByExercise] = useState<Record<string, string>>(
+    () => {
+      const initial: Record<string, string> = {};
+      for (const exercise of initialData.exercises) {
+        initial[exercise.id] = initialData.todayNotesByExercise[exercise.id] ?? "";
+      }
+      return initial;
+    },
+  );
+  const [noteSavingByExercise, setNoteSavingByExercise] = useState<
+    Record<string, boolean>
+  >({});
+  const [noteJustSavedByExercise, setNoteJustSavedByExercise] = useState<
+    Record<string, boolean>
+  >({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPreparingWorkout, setIsPreparingWorkout] = useState(
     !initialData.workout && initialData.exercises.length > 0,
   );
-  const [isPending, startTransition] = useTransition();
+  const [isFinishing, setIsFinishing] = useState(false);
+
+  const setSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const noteSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const setFlashTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const noteFlashTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const pendingSetSaves = useRef<Record<string, { exerciseId: string; set: LocalSet }>>({});
+  const pendingNoteSaves = useRef<Record<string, string>>({});
+  const workoutIdRef = useRef<string | null>(initialData.workout?.id ?? null);
 
   const canLogSets = Boolean(workout?.id);
+  const isCompleted = Boolean(workout?.completed_at);
 
   const exerciseCount = initialData.exercises.length;
   const totalSets = useMemo(
@@ -118,6 +148,47 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    workoutIdRef.current = workout?.id ?? null;
+  }, [workout?.id]);
+
+  // Flush any pending debounced saves to the server if the component unmounts
+  // (e.g. navigating to another tab) before the debounce timer fires, so
+  // in-progress edits are never silently lost.
+  useEffect(() => {
+    return () => {
+      for (const timer of Object.values(setSaveTimers.current)) clearTimeout(timer);
+      for (const timer of Object.values(noteSaveTimers.current)) clearTimeout(timer);
+      for (const timer of Object.values(setFlashTimers.current)) clearTimeout(timer);
+      for (const timer of Object.values(noteFlashTimers.current)) clearTimeout(timer);
+
+      const workoutId = workoutIdRef.current;
+
+      if (workoutId) {
+        for (const { exerciseId, set } of Object.values(pendingSetSaves.current)) {
+          if (set.reps >= 1) {
+            void upsertSet({
+              id: set.id,
+              workoutId,
+              exerciseId,
+              setCategory: set.set_category,
+              weight: set.weight,
+              reps: set.reps,
+              setOrder: set.set_order,
+            });
+          }
+        }
+
+        for (const [exerciseId, note] of Object.entries(pendingNoteSaves.current)) {
+          void upsertExerciseNote({ workoutId, exerciseId, note });
+        }
+      }
+
+      pendingSetSaves.current = {};
+      pendingNoteSaves.current = {};
+    };
+  }, []);
+
   function updateExerciseSets(
     exerciseId: string,
     updater: (sets: LocalSet[]) => LocalSet[],
@@ -128,37 +199,36 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
     }));
   }
 
+  function scheduleSetSave(exerciseId: string, localId: string, next: LocalSet) {
+    pendingSetSaves.current[localId] = { exerciseId, set: next };
+
+    if (setSaveTimers.current[localId]) {
+      clearTimeout(setSaveTimers.current[localId]);
+    }
+    setSaveTimers.current[localId] = setTimeout(() => {
+      delete setSaveTimers.current[localId];
+      delete pendingSetSaves.current[localId];
+      handleSaveSet(exerciseId, localId, next);
+    }, SAVE_DEBOUNCE_MS);
+  }
+
   function handleAddSet(exerciseId: string) {
-    updateExerciseSets(exerciseId, (sets) => [
-      ...sets,
-      createEmptySet(sets.length + 1),
-    ]);
+    const currentSets = setsByExercise[exerciseId] ?? [];
+    const newSet = createEmptySet(currentSets.length + 1);
+
+    updateExerciseSets(exerciseId, (sets) => [...sets, newSet]);
+    scheduleSetSave(exerciseId, newSet.localId, newSet);
   }
 
   function handleChangeSet(exerciseId: string, localId: string, next: LocalSet) {
     updateExerciseSets(exerciseId, (sets) =>
       sets.map((set) => (set.localId === localId ? next : set)),
     );
+    scheduleSetSave(exerciseId, localId, next);
   }
 
-  function handleSaveSet(
-    exerciseId: string,
-    localId: string,
-    setOverride: LocalSet,
-  ) {
-    if (!workout?.id) {
-      setErrorMessage("Today's workout is still being prepared. Try again in a moment.");
-      return;
-    }
-
-    const target = setOverride;
-
-    if (target.reps < 1) {
-      setErrorMessage("Reps must be at least 1.");
-      return;
-    }
-
-    if (target.saving) {
+  function handleSaveSet(exerciseId: string, localId: string, target: LocalSet) {
+    if (!workout?.id || target.reps < 1) {
       return;
     }
 
@@ -166,11 +236,11 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
 
     updateExerciseSets(exerciseId, (sets) =>
       sets.map((set) =>
-        set.localId === localId ? { ...target, saving: true } : set,
+        set.localId === localId ? { ...target, saving: true, justSaved: false } : set,
       ),
     );
 
-    startTransition(async () => {
+    (async () => {
       const result = await upsertSet({
         id: target.id,
         workoutId: workout.id,
@@ -191,14 +261,28 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
         return;
       }
 
+      const savedLocalId = result.set.id;
+
       updateExerciseSets(exerciseId, (sets) =>
         sets.map((set) =>
           set.localId === localId
-            ? { ...toLocalSet(result.set), localId: result.set.id }
+            ? { ...toLocalSet(result.set), localId: savedLocalId, justSaved: true }
             : set,
         ),
       );
-    });
+
+      if (setFlashTimers.current[savedLocalId]) {
+        clearTimeout(setFlashTimers.current[savedLocalId]);
+      }
+      setFlashTimers.current[savedLocalId] = setTimeout(() => {
+        delete setFlashTimers.current[savedLocalId];
+        updateExerciseSets(exerciseId, (sets) =>
+          sets.map((set) =>
+            set.localId === savedLocalId ? { ...set, justSaved: false } : set,
+          ),
+        );
+      }, SAVE_FLASH_MS);
+    })();
   }
 
   function handleDeleteSet(exerciseId: string, localId: string) {
@@ -208,8 +292,13 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
 
     if (!target) return;
 
+    if (setSaveTimers.current[localId]) {
+      clearTimeout(setSaveTimers.current[localId]);
+      delete setSaveTimers.current[localId];
+    }
+    delete pendingSetSaves.current[localId];
+
     setErrorMessage(null);
-    setStatusMessage(null);
 
     if (!target.id) {
       updateExerciseSets(exerciseId, (sets) =>
@@ -226,7 +315,7 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
       ),
     );
 
-    startTransition(async () => {
+    (async () => {
       const result = await deleteSet(target.id!);
 
       if (!result.success) {
@@ -244,8 +333,77 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
           .filter((set) => set.localId !== localId)
           .map((set, index) => ({ ...set, set_order: index + 1 })),
       );
-      setStatusMessage("Set deleted.");
-    });
+    })();
+  }
+
+  function scheduleNoteSave(exerciseId: string, note: string) {
+    pendingNoteSaves.current[exerciseId] = note;
+
+    if (noteSaveTimers.current[exerciseId]) {
+      clearTimeout(noteSaveTimers.current[exerciseId]);
+    }
+    noteSaveTimers.current[exerciseId] = setTimeout(() => {
+      delete noteSaveTimers.current[exerciseId];
+      delete pendingNoteSaves.current[exerciseId];
+      handleSaveNote(exerciseId, note);
+    }, SAVE_DEBOUNCE_MS);
+  }
+
+  function handleChangeNote(exerciseId: string, note: string) {
+    setNotesByExercise((current) => ({ ...current, [exerciseId]: note }));
+    scheduleNoteSave(exerciseId, note);
+  }
+
+  function handleSaveNote(exerciseId: string, note: string) {
+    if (!workout?.id) return;
+
+    setErrorMessage(null);
+    setNoteSavingByExercise((current) => ({ ...current, [exerciseId]: true }));
+    setNoteJustSavedByExercise((current) => ({ ...current, [exerciseId]: false }));
+
+    (async () => {
+      const result = await upsertExerciseNote({
+        workoutId: workout.id,
+        exerciseId,
+        note,
+      });
+
+      setNoteSavingByExercise((current) => ({ ...current, [exerciseId]: false }));
+
+      if (!result.success) {
+        setErrorMessage(result.error);
+        return;
+      }
+
+      setNoteJustSavedByExercise((current) => ({ ...current, [exerciseId]: true }));
+
+      if (noteFlashTimers.current[exerciseId]) {
+        clearTimeout(noteFlashTimers.current[exerciseId]);
+      }
+      noteFlashTimers.current[exerciseId] = setTimeout(() => {
+        delete noteFlashTimers.current[exerciseId];
+        setNoteJustSavedByExercise((current) => ({ ...current, [exerciseId]: false }));
+      }, SAVE_FLASH_MS);
+    })();
+  }
+
+  function handleFinishWorkout() {
+    if (!workout?.id) return;
+
+    setErrorMessage(null);
+    setIsFinishing(true);
+
+    (async () => {
+      const result = await finishWorkout(workout.id);
+      setIsFinishing(false);
+
+      if (result.error || !result.workout) {
+        setErrorMessage(result.error ?? "Failed to finish workout.");
+        return;
+      }
+
+      setWorkout(result.workout);
+    })();
   }
 
   if (initialData.exercises.length === 0) {
@@ -257,6 +415,18 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
           added later.
         </p>
       </section>
+    );
+  }
+
+  if (workout?.completed_at) {
+    return (
+      <WorkoutCompleteSummary
+        programLabel={initialData.programLabel}
+        completedAt={workout.completed_at}
+        exercises={initialData.exercises}
+        setsByExercise={setsByExercise}
+        notesByExercise={notesByExercise}
+      />
     );
   }
 
@@ -285,15 +455,17 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
           key={exercise.id}
           exercise={exercise}
           sets={setsByExercise[exercise.id] ?? []}
-          disabled={!canLogSets || isPending}
+          disabled={!canLogSets || isFinishing}
           onChangeSet={(localId, next) =>
             handleChangeSet(exercise.id, localId, next)
           }
-          onSaveSet={(localId, setToSave) =>
-            handleSaveSet(exercise.id, localId, setToSave)
-          }
           onDeleteSet={(localId) => handleDeleteSet(exercise.id, localId)}
           onAddSet={() => handleAddSet(exercise.id)}
+          previousNote={initialData.previousNotesByExercise[exercise.id] ?? null}
+          noteValue={notesByExercise[exercise.id] ?? ""}
+          onNoteChange={(value) => handleChangeNote(exercise.id, value)}
+          noteSaving={Boolean(noteSavingByExercise[exercise.id])}
+          noteJustSaved={Boolean(noteJustSavedByExercise[exercise.id])}
         />
       ))}
 
@@ -306,12 +478,17 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
         </p>
       ) : null}
 
-      {statusMessage ? (
-        <p
-          role="status"
-          className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300"
-        >
-          {statusMessage}
+      <Button
+        fullWidth
+        disabled={!canLogSets || isFinishing || totalSets === 0}
+        onClick={handleFinishWorkout}
+      >
+        {isFinishing ? "Finishing…" : "Finish Workout"}
+      </Button>
+
+      {canLogSets && totalSets === 0 ? (
+        <p className="text-center text-xs text-zinc-500">
+          Log at least one set before finishing.
         </p>
       ) : null}
     </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { ExerciseNotesInput } from "@/components/workout/ExerciseNotesInput";
 import { SetList } from "@/components/workout/SetList";
 import type { LocalSet } from "@/components/workout/SetRow";
 import type { Exercise } from "@/lib/supabase/types";
@@ -9,15 +10,20 @@ type ExerciseBlockProps = {
   sets: LocalSet[];
   disabled?: boolean;
   onChangeSet: (localId: string, next: LocalSet) => void;
-  onSaveSet: (localId: string, setToSave: LocalSet) => void;
   onDeleteSet: (localId: string) => void;
   onAddSet: () => void;
+  previousNote: string | null;
+  noteValue: string;
+  onNoteChange: (value: string) => void;
+  noteSaving?: boolean;
+  noteJustSaved?: boolean;
 };
 
 const categoryLabel: Record<Exercise["category"], string> = {
   barbell: "Barbell",
   calisthenics: "Calisthenics",
   cardio: "Cardio",
+  mobility: "Mobility",
 };
 
 export function ExerciseBlock({
@@ -25,9 +31,13 @@ export function ExerciseBlock({
   sets,
   disabled = false,
   onChangeSet,
-  onSaveSet,
   onDeleteSet,
   onAddSet,
+  previousNote,
+  noteValue,
+  onNoteChange,
+  noteSaving = false,
+  noteJustSaved = false,
 }: ExerciseBlockProps) {
   return (
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
@@ -47,10 +57,20 @@ export function ExerciseBlock({
         sets={sets}
         disabled={disabled}
         onChangeSet={onChangeSet}
-        onSaveSet={onSaveSet}
         onDeleteSet={onDeleteSet}
         onAddSet={onAddSet}
       />
+
+      <div className="mt-4">
+        <ExerciseNotesInput
+          previousNote={previousNote}
+          value={noteValue}
+          onChange={onNoteChange}
+          disabled={disabled}
+          saving={noteSaving}
+          justSaved={noteJustSaved}
+        />
+      </div>
     </section>
   );
 }

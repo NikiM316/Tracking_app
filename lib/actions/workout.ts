@@ -8,6 +8,8 @@ import type { Exercise, Set, SetCategory, Workout } from "@/lib/supabase/types";
 import { getCycleAnchorDate, getCycleDay } from "@/lib/utils/cycle-day";
 import { PLACEHOLDER_USER_ID } from "@/lib/utils/placeholder-user";
 
+type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
+
 function getPlaceholderUserId(): string {
   return process.env.PLACEHOLDER_USER_ID ?? PLACEHOLDER_USER_ID;
 }
@@ -28,12 +30,76 @@ function orderExercisesByProgram(
     .filter((exercise): exercise is Exercise => exercise !== undefined);
 }
 
+async function getPreviousNotesByExercise(
+  supabase: SupabaseClient,
+  userId: string,
+  exerciseIds: string[],
+  excludeWorkoutId?: string,
+): Promise<Record<string, string>> {
+  if (exerciseIds.length === 0) {
+    return {};
+  }
+
+  const { data: completedWorkouts, error: workoutsError } = await supabase
+    .from("workouts")
+    .select("id, date")
+    .eq("user_id", userId)
+    .not("completed_at", "is", null)
+    .order("date", { ascending: false });
+
+  if (workoutsError) {
+    throw new Error(`Failed to fetch workout history: ${workoutsError.message}`);
+  }
+
+  const relevantWorkouts = (completedWorkouts ?? []).filter(
+    (candidate) => candidate.id !== excludeWorkoutId,
+  );
+
+  if (relevantWorkouts.length === 0) {
+    return {};
+  }
+
+  const dateByWorkoutId = new Map(
+    relevantWorkouts.map((candidate) => [candidate.id, candidate.date]),
+  );
+  const workoutIds = relevantWorkouts.map((candidate) => candidate.id);
+
+  const { data: notes, error: notesError } = await supabase
+    .from("exercise_notes")
+    .select("*")
+    .in("exercise_id", exerciseIds)
+    .in("workout_id", workoutIds);
+
+  if (notesError) {
+    throw new Error(`Failed to fetch previous notes: ${notesError.message}`);
+  }
+
+  const sorted = (notes ?? [])
+    .filter((note) => note.note.trim().length > 0)
+    .sort((a, b) => {
+      const dateA = dateByWorkoutId.get(a.workout_id) ?? "";
+      const dateB = dateByWorkoutId.get(b.workout_id) ?? "";
+      return dateB.localeCompare(dateA);
+    });
+
+  const result: Record<string, string> = {};
+  for (const note of sorted) {
+    if (!(note.exercise_id in result)) {
+      result[note.exercise_id] = note.note;
+    }
+  }
+
+  return result;
+}
+
 export type TodayWorkoutData = {
   cycleDay: number;
   programLabel: string | null;
   exercises: Exercise[];
   workout: Workout | null;
   sets: Set[];
+  todayNotesByExercise: Record<string, string>;
+  previousNotesByExercise: Record<string, string>;
 };
 
 export async function getTodayWorkoutData(): Promise<TodayWorkoutData> {
@@ -50,6 +116,8 @@ export async function getTodayWorkoutData(): Promise<TodayWorkoutData> {
       exercises: [],
       workout: null,
       sets: [],
+      todayNotesByExercise: {},
+      previousNotesByExercise: {},
     };
   }
 
@@ -61,6 +129,11 @@ export async function getTodayWorkoutData(): Promise<TodayWorkoutData> {
   if (exercisesError) {
     throw new Error(`Failed to fetch exercises: ${exercisesError.message}`);
   }
+
+  const orderedExercises = orderExercisesByProgram(
+    exercises ?? [],
+    programDay.exerciseSlugs,
+  );
 
   const { data: workout, error: workoutError } = await supabase
     .from("workouts")
@@ -74,6 +147,7 @@ export async function getTodayWorkoutData(): Promise<TodayWorkoutData> {
   }
 
   let sets: Set[] = [];
+  let todayNotesByExercise: Record<string, string> = {};
 
   if (workout) {
     const { data: setsData, error: setsError } = await supabase
@@ -87,14 +161,36 @@ export async function getTodayWorkoutData(): Promise<TodayWorkoutData> {
     }
 
     sets = setsData ?? [];
+
+    const { data: notesData, error: notesError } = await supabase
+      .from("exercise_notes")
+      .select("*")
+      .eq("workout_id", workout.id);
+
+    if (notesError) {
+      throw new Error(`Failed to fetch notes: ${notesError.message}`);
+    }
+
+    todayNotesByExercise = Object.fromEntries(
+      (notesData ?? []).map((note) => [note.exercise_id, note.note]),
+    );
   }
+
+  const previousNotesByExercise = await getPreviousNotesByExercise(
+    supabase,
+    userId,
+    orderedExercises.map((exercise) => exercise.id),
+    workout?.id,
+  );
 
   return {
     cycleDay,
     programLabel: programDay.label,
-    exercises: orderExercisesByProgram(exercises ?? [], programDay.exerciseSlugs),
+    exercises: orderedExercises,
     workout,
     sets,
+    todayNotesByExercise,
+    previousNotesByExercise,
   };
 }
 
@@ -157,6 +253,27 @@ export async function upsertWorkout(
   return { workout };
 }
 
+export async function finishWorkout(
+  workoutId: string,
+): Promise<{ workout: Workout; error?: undefined } | { workout: null; error: string }> {
+  const supabase = createServerSupabaseClient();
+
+  const { data: workout, error } = await supabase
+    .from("workouts")
+    .update({ completed_at: new Date().toISOString() })
+    .eq("id", workoutId)
+    .select("*")
+    .single();
+
+  if (error || !workout) {
+    return { workout: null, error: error?.message ?? "Failed to finish workout" };
+  }
+
+  revalidatePath("/today");
+  revalidatePath("/history");
+  return { workout };
+}
+
 type UpsertSetInput = {
   id?: string;
   workoutId: string;
@@ -176,7 +293,7 @@ export async function upsertSet(
     workout_id: input.workoutId,
     exercise_id: input.exerciseId,
     set_category: input.setCategory,
-    weight: input.weight,
+    weight_kg: input.weight,
     reps: input.reps,
     set_order: input.setOrder,
   };
@@ -223,5 +340,35 @@ export async function deleteSet(
   }
 
   revalidatePath("/today");
+  return { success: true };
+}
+
+type UpsertExerciseNoteInput = {
+  workoutId: string;
+  exerciseId: string;
+  note: string;
+};
+
+export async function upsertExerciseNote(
+  input: UpsertExerciseNoteInput,
+): Promise<{ success: true; error?: undefined } | { success: false; error: string }> {
+  const supabase = createServerSupabaseClient();
+
+  const { error } = await supabase.from("exercise_notes").upsert(
+    {
+      workout_id: input.workoutId,
+      exercise_id: input.exerciseId,
+      note: input.note,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "workout_id,exercise_id" },
+  );
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/today");
+  revalidatePath("/history");
   return { success: true };
 }
