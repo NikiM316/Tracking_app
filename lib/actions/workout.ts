@@ -92,6 +92,83 @@ async function getPreviousNotesByExercise(
   return result;
 }
 
+export type PreviousSessionSet = {
+  weight: number | null;
+  reps: number;
+  set_order: number;
+};
+
+export type PreviousExerciseSession = {
+  workoutDate: string;
+  sets: PreviousSessionSet[];
+};
+
+export async function getPreviousExerciseSession(
+  exerciseId: string,
+  excludeWorkoutId?: string,
+): Promise<PreviousExerciseSession | null> {
+  const supabase = createServerSupabaseClient();
+  const userId = getPlaceholderUserId();
+
+  const { data: completedWorkouts, error: workoutsError } = await supabase
+    .from("workouts")
+    .select("id, date")
+    .eq("user_id", userId)
+    .not("completed_at", "is", null)
+    .order("date", { ascending: false });
+
+  if (workoutsError) {
+    throw new Error(
+      `Failed to fetch previous exercise session: ${workoutsError.message}`,
+    );
+  }
+
+  const relevantWorkouts = (completedWorkouts ?? []).filter(
+    (workout) => workout.id !== excludeWorkoutId,
+  );
+
+  if (relevantWorkouts.length === 0) {
+    return null;
+  }
+
+  const workoutIds = relevantWorkouts.map((workout) => workout.id);
+
+  const { data: sets, error: setsError } = await supabase
+    .from("sets")
+    .select("workout_id, weight_kg, reps, set_order")
+    .eq("exercise_id", exerciseId)
+    .in("workout_id", workoutIds)
+    .order("set_order", { ascending: true });
+
+  if (setsError) {
+    throw new Error(`Failed to fetch previous sets: ${setsError.message}`);
+  }
+
+  const setsByWorkoutId = new Map<string, PreviousSessionSet[]>();
+
+  for (const set of sets ?? []) {
+    const list = setsByWorkoutId.get(set.workout_id) ?? [];
+    list.push({
+      weight: set.weight_kg,
+      reps: set.reps,
+      set_order: set.set_order,
+    });
+    setsByWorkoutId.set(set.workout_id, list);
+  }
+
+  for (const workout of relevantWorkouts) {
+    const previousSets = setsByWorkoutId.get(workout.id);
+    if (previousSets && previousSets.length > 0) {
+      return {
+        workoutDate: workout.date,
+        sets: previousSets.sort((a, b) => a.set_order - b.set_order),
+      };
+    }
+  }
+
+  return null;
+}
+
 export type TodayWorkoutData = {
   cycleDay: number;
   programLabel: string | null;

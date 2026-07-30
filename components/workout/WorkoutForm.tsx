@@ -456,6 +456,7 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
           exercise={exercise}
           sets={setsByExercise[exercise.id] ?? []}
           disabled={!canLogSets || isFinishing}
+          currentWorkoutId={workout?.id ?? null}
           onChangeSet={(localId, next) =>
             handleChangeSet(exercise.id, localId, next)
           }

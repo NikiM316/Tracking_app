@@ -1,6 +1,7 @@
 "use client";
 
 import { ExerciseNotesInput } from "@/components/workout/ExerciseNotesInput";
+import { PreviousSessionGhost } from "@/components/workout/PreviousSessionGhost";
 import { SetList } from "@/components/workout/SetList";
 import type { LocalSet } from "@/components/workout/SetRow";
 import type { Exercise } from "@/lib/supabase/types";
@@ -9,6 +10,7 @@ type ExerciseBlockProps = {
   exercise: Exercise;
   sets: LocalSet[];
   disabled?: boolean;
+  currentWorkoutId?: string | null;
   onChangeSet: (localId: string, next: LocalSet) => void;
   onDeleteSet: (localId: string) => void;
   onAddSet: () => void;
@@ -30,6 +32,7 @@ export function ExerciseBlock({
   exercise,
   sets,
   disabled = false,
+  currentWorkoutId = null,
   onChangeSet,
   onDeleteSet,
   onAddSet,
@@ -52,6 +55,11 @@ export function ExerciseBlock({
           {categoryLabel[exercise.category]}
         </span>
       </div>
+
+      <PreviousSessionGhost
+        exerciseId={exercise.id}
+        excludeWorkoutId={currentWorkoutId}
+      />
 
       <SetList
         sets={sets}
