@@ -11,6 +11,7 @@ type SetCategoryPickerProps = {
 
 const OPTIONS: { value: SetCategory; label: string }[] = [
   { value: "top_set", label: "Top set" },
+  { value: "working_set", label: "Normal" },
   { value: "back_off", label: "Back-off" },
 ];
 

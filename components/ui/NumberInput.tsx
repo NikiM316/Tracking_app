@@ -58,13 +58,13 @@ export function NumberInput({
         {label}
         {unit ? ` (${unit})` : ""}
       </label>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2">
         <button
           type="button"
           aria-label={`Decrease ${label}`}
           disabled={disabled}
           onClick={decrement}
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900 text-xl font-semibold text-zinc-200 transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-11 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900 text-lg font-semibold text-zinc-200 transition-colors hover:bg-zinc-800 sm:h-12 sm:w-12 sm:text-xl disabled:cursor-not-allowed disabled:opacity-40"
         >
           −
         </button>
@@ -74,14 +74,14 @@ export function NumberInput({
           disabled={disabled}
           value={value ?? ""}
           onChange={(event) => handleInputChange(event.target.value)}
-          className="h-12 w-full min-w-0 rounded-xl border border-zinc-700 bg-zinc-950 text-center text-lg font-semibold text-zinc-50 outline-none focus:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+          className="h-11 min-w-[5.5rem] flex-1 rounded-xl border border-zinc-700 bg-zinc-950 px-2 text-center text-base font-semibold tabular-nums text-zinc-50 outline-none focus:border-emerald-500 sm:h-12 sm:text-lg disabled:cursor-not-allowed disabled:opacity-40"
         />
         <button
           type="button"
           aria-label={`Increase ${label}`}
           disabled={disabled}
           onClick={increment}
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900 text-xl font-semibold text-zinc-200 transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-11 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900 text-lg font-semibold text-zinc-200 transition-colors hover:bg-zinc-800 sm:h-12 sm:w-12 sm:text-xl disabled:cursor-not-allowed disabled:opacity-40"
         >
           +
         </button>
