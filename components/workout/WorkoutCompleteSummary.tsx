@@ -1,5 +1,7 @@
 "use client";
 
+import { format, parseISO } from "date-fns";
+
 import type { LocalSet } from "@/components/workout/SetRow";
 import type { Exercise } from "@/lib/supabase/types";
 
@@ -24,10 +26,7 @@ export function WorkoutCompleteSummary({
   setsByExercise,
   notesByExercise,
 }: WorkoutCompleteSummaryProps) {
-  const formattedTime = new Date(completedAt).toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  const formattedTime = format(parseISO(completedAt), "h:mm a");
 
   return (
     <div className="space-y-5">

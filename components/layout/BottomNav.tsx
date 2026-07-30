@@ -70,6 +70,26 @@ const navItems: NavItem[] = [
       </svg>
     ),
   },
+  {
+    href: "/analytics",
+    label: "Analytics",
+    icon: (
+      <svg
+        aria-hidden="true"
+        className="h-6 w-6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.75}
+        viewBox="0 0 24 24"
+      >
+        <path
+          d="M4 20V10m6 10V4m6 16v-7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    ),
+  },
 ];
 
 export function BottomNav() {
