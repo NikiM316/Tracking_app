@@ -18,5 +18,5 @@ export function getCycleDay(
 }
 
 export function getCycleAnchorDate(): string {
-  return process.env.CYCLE_START_DATE ?? "2026-01-01";
+  return process.env.CYCLE_START_DATE ?? "2026-08-04";
 }
