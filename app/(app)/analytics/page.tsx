@@ -18,7 +18,7 @@ export default async function AnalyticsPage() {
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
         <h2 className="text-lg font-semibold text-zinc-50">Consistency</h2>
         <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-          Last 3 months of training days across your cycle.
+          Training days since your cycle start.
         </p>
       </div>
 

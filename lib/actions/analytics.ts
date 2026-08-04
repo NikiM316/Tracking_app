@@ -6,14 +6,22 @@ import { getCycleAnchorDate, getCycleDay } from "@/lib/utils/cycle-day";
 import { PLACEHOLDER_USER_ID } from "@/lib/utils/placeholder-user";
 
 const REST_CYCLE_DAYS = new Set([4, 7, 11, 14]);
-const CALENDAR_DAYS = 90;
 
 function getPlaceholderUserId(): string {
   return process.env.PLACEHOLDER_USER_ID ?? PLACEHOLDER_USER_ID;
 }
 
 function toDateString(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseLocalDate(dateStr: string): Date {
+  const date = new Date(`${dateStr}T00:00:00`);
+  date.setHours(0, 0, 0, 0);
+  return date;
 }
 
 export type ConsistencyDayStatus = "logged" | "rest" | "missed" | "future";
@@ -33,8 +41,14 @@ export async function getConsistencyCalendar(): Promise<ConsistencyDay[]> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const startDate = new Date(today);
-  startDate.setDate(startDate.getDate() - (CALENDAR_DAYS - 1));
+  const startDate = parseLocalDate(anchorDate);
+  if (startDate.getTime() > today.getTime()) {
+    startDate.setTime(today.getTime());
+  }
+
+  const dayCount =
+    Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) +
+    1;
 
   const { data: workouts, error } = await supabase
     .from("workouts")
@@ -51,7 +65,7 @@ export async function getConsistencyCalendar(): Promise<ConsistencyDay[]> {
 
   const days: ConsistencyDay[] = [];
 
-  for (let i = 0; i < CALENDAR_DAYS; i++) {
+  for (let i = 0; i < dayCount; i++) {
     const date = new Date(startDate);
     date.setDate(date.getDate() + i);
 
@@ -59,12 +73,9 @@ export async function getConsistencyCalendar(): Promise<ConsistencyDay[]> {
     const cycleDay = getCycleDay(anchorDate, date);
     const programDay = getProgramDay(cycleDay);
     const isRestDay = REST_CYCLE_DAYS.has(cycleDay);
-    const isFuture = date.getTime() > today.getTime();
 
     let status: ConsistencyDayStatus;
-    if (isFuture) {
-      status = "future";
-    } else if (loggedDates.has(dateStr)) {
+    if (loggedDates.has(dateStr)) {
       status = "logged";
     } else if (isRestDay) {
       status = "rest";
