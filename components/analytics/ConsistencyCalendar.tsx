@@ -22,18 +22,31 @@ const STATUS_LABELS: Record<ConsistencyDay["status"], string> = {
   future: "Upcoming",
 };
 
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
 function formatDateLabel(dateStr: string): string {
-  return new Date(`${dateStr}T00:00:00`).toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+  // Manual format avoids SSR/client locale mismatches from toLocaleDateString.
+  const date = new Date(`${dateStr}T00:00:00`);
+  return `${WEEKDAYS[date.getDay()]}, ${MONTHS[date.getMonth()]} ${date.getDate()}`;
 }
 
 function formatMonthLabel(dateStr: string): string {
-  return new Date(`${dateStr}T00:00:00`).toLocaleDateString(undefined, {
-    month: "short",
-  });
+  const date = new Date(`${dateStr}T00:00:00`);
+  return MONTHS[date.getMonth()];
 }
 
 export function ConsistencyCalendar({ days }: ConsistencyCalendarProps) {

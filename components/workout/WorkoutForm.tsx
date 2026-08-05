@@ -27,6 +27,22 @@ function createLocalId() {
   return `local-${crypto.randomUUID()}`;
 }
 
+function getRestSecondsForSet(
+  exerciseSets: LocalSet[],
+  localId: string,
+  restElapsedByPrecedingSet: Record<string, number>,
+  fallbackRestSeconds: number | null | undefined,
+): number | null {
+  const setIndex = exerciseSets.findIndex((set) => set.localId === localId);
+  if (setIndex <= 0) return null;
+
+  const precedingLocalId = exerciseSets[setIndex - 1].localId;
+  if (precedingLocalId in restElapsedByPrecedingSet) {
+    return restElapsedByPrecedingSet[precedingLocalId];
+  }
+  return fallbackRestSeconds ?? null;
+}
+
 function toLocalSet(set: DbSet): LocalSet {
   return {
     localId: set.id,
@@ -35,6 +51,7 @@ function toLocalSet(set: DbSet): LocalSet {
     weight: set.weight_kg,
     reps: set.reps,
     set_order: set.set_order,
+    restSeconds: set.rest_seconds,
     dirty: false,
     saving: false,
   };
@@ -43,9 +60,9 @@ function toLocalSet(set: DbSet): LocalSet {
 function createEmptySet(setOrder: number): LocalSet {
   return {
     localId: createLocalId(),
-    set_category: "top_set",
+    set_category: "working_set",
     weight: null,
-    reps: 5,
+    reps: null,
     set_order: setOrder,
     dirty: true,
     saving: false,
@@ -109,6 +126,7 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
   const pendingSetSaves = useRef<Record<string, { exerciseId: string; set: LocalSet }>>({});
   const pendingNoteSaves = useRef<Record<string, string>>({});
   const workoutIdRef = useRef<string | null>(initialData.workout?.id ?? null);
+  const restElapsedByPrecedingSetRef = useRef<Record<string, number>>({});
 
   const canLogSets = Boolean(workout?.id);
   const isCompleted = Boolean(workout?.completed_at);
@@ -166,7 +184,15 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
 
       if (workoutId) {
         for (const { exerciseId, set } of Object.values(pendingSetSaves.current)) {
-          if (set.reps >= 1) {
+          if (set.reps != null && set.reps >= 1) {
+            const exerciseSets = setsByExercise[exerciseId] ?? [];
+            const restSeconds = getRestSecondsForSet(
+              exerciseSets,
+              set.localId,
+              restElapsedByPrecedingSetRef.current,
+              set.restSeconds,
+            );
+
             void upsertSet({
               id: set.id,
               workoutId,
@@ -175,6 +201,7 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
               weight: set.weight,
               reps: set.reps,
               setOrder: set.set_order,
+              restSeconds,
             });
           }
         }
@@ -227,12 +254,25 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
     scheduleSetSave(exerciseId, localId, next);
   }
 
+  function handleRestElapsedChange(precedingSetLocalId: string, seconds: number) {
+    restElapsedByPrecedingSetRef.current[precedingSetLocalId] = seconds;
+  }
+
   function handleSaveSet(exerciseId: string, localId: string, target: LocalSet) {
-    if (!workout?.id || target.reps < 1) {
+    const reps = target.reps;
+    if (!workout?.id || reps == null || reps < 1) {
       return;
     }
 
     setErrorMessage(null);
+
+    const exerciseSets = setsByExercise[exerciseId] ?? [];
+    const restSeconds = getRestSecondsForSet(
+      exerciseSets,
+      localId,
+      restElapsedByPrecedingSetRef.current,
+      target.restSeconds,
+    );
 
     updateExerciseSets(exerciseId, (sets) =>
       sets.map((set) =>
@@ -247,8 +287,9 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
         exerciseId,
         setCategory: target.set_category,
         weight: target.weight,
-        reps: target.reps,
+        reps,
         setOrder: target.set_order,
+        restSeconds,
       });
 
       if (result.error || !result.set) {
@@ -462,6 +503,7 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
           }
           onDeleteSet={(localId) => handleDeleteSet(exercise.id, localId)}
           onAddSet={() => handleAddSet(exercise.id)}
+          onRestElapsedChange={handleRestElapsedChange}
           previousNote={initialData.previousNotesByExercise[exercise.id] ?? null}
           noteValue={notesByExercise[exercise.id] ?? ""}
           onNoteChange={(value) => handleChangeNote(exercise.id, value)}

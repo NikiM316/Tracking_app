@@ -17,6 +17,7 @@ import {
   type ExerciseOption,
   type ExerciseProgressPoint,
 } from "@/lib/actions/analytics";
+import { formatRestDuration } from "@/lib/utils/format-rest";
 
 type ProgressionChartProps = {
   exercises: ExerciseOption[];
@@ -111,8 +112,12 @@ export function ProgressionChart({ exercises }: ProgressionChartProps) {
                 labelStyle={{ color: "#e4e4e7" }}
                 formatter={(value, _name, item) => {
                   const point = item.payload as ChartPoint;
+                  const restLabel =
+                    point.bestSetRestSeconds != null
+                      ? ` · ${formatRestDuration(point.bestSetRestSeconds)} rest`
+                      : "";
                   return [
-                    `${value} kg (${point.maxWeight}kg × ${point.bestReps})`,
+                    `${value} kg (${point.maxWeight}kg × ${point.bestReps}${restLabel})`,
                     "Est. 1RM",
                   ];
                 }}

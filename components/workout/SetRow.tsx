@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/Button";
 import { NumberInput } from "@/components/ui/NumberInput";
 import { SetCategoryPicker } from "@/components/workout/SetCategoryPicker";
+import { formatRestDuration } from "@/lib/utils/format-rest";
 import type { SetCategory } from "@/lib/supabase/types";
 
 export type LocalSet = {
@@ -10,8 +11,9 @@ export type LocalSet = {
   id?: string;
   set_category: SetCategory;
   weight: number | null;
-  reps: number;
+  reps: number | null;
   set_order: number;
+  restSeconds?: number | null;
   dirty?: boolean;
   saving?: boolean;
   justSaved?: boolean;
@@ -39,6 +41,11 @@ export function SetRow({
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-zinc-200">Set {index + 1}</p>
+          {set.restSeconds != null ? (
+            <span className="rounded-full border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[11px] font-medium text-zinc-400">
+              {formatRestDuration(set.restSeconds)} rest
+            </span>
+          ) : null}
           {set.saving ? (
             <span className="text-xs font-medium text-emerald-400">Saving…</span>
           ) : (
@@ -88,7 +95,7 @@ export function SetRow({
           value={set.weight}
           min={0}
           max={500}
-          step={2.5}
+          step={0.5}
           allowNull
           disabled={isBusy}
           onChange={(weight) => onChange({ ...set, weight, dirty: true })}
@@ -100,10 +107,9 @@ export function SetRow({
           min={1}
           max={100}
           step={1}
+          allowNull
           disabled={isBusy}
-          onChange={(reps) =>
-            onChange({ ...set, reps: reps ?? 1, dirty: true })
-          }
+          onChange={(reps) => onChange({ ...set, reps, dirty: true })}
         />
       </div>
     </div>

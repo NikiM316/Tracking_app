@@ -32,6 +32,7 @@ export type Set = {
   weight_kg: number | null;
   reps: number;
   set_order: number;
+  rest_seconds: number | null;
   created_at: string;
 };
 

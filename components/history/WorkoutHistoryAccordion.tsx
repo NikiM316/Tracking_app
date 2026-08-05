@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import type { HistoryWorkoutEntry } from "@/lib/actions/history";
+import { formatRestDuration } from "@/lib/utils/format-rest";
 
 type WorkoutHistoryAccordionProps = {
   entries: HistoryWorkoutEntry[];
@@ -14,13 +15,26 @@ const setCategoryLabel: Record<string, string> = {
   back_off: "Back-off",
 };
 
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  // Manual format avoids SSR/client locale mismatches from toLocaleDateString.
+  const date = new Date(`${dateStr}T00:00:00`);
+  return `${WEEKDAYS[date.getDay()]}, ${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
 }
 
 export function WorkoutHistoryAccordion({ entries }: WorkoutHistoryAccordionProps) {
@@ -106,6 +120,9 @@ export function WorkoutHistoryAccordion({ entries }: WorkoutHistoryAccordionProp
                             <span className="font-medium text-zinc-100">
                               {set.weight_kg != null ? `${set.weight_kg} kg × ` : ""}
                               {set.reps} reps
+                              {set.rest_seconds != null
+                                ? ` (${formatRestDuration(set.rest_seconds)} rest)`
+                                : ""}
                             </span>
                           </li>
                         ))}

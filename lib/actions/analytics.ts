@@ -120,6 +120,7 @@ export type ExerciseProgressPoint = {
   estimatedOneRepMax: number;
   maxWeight: number;
   bestReps: number;
+  bestSetRestSeconds: number | null;
 };
 
 export async function getExerciseProgress(
@@ -149,7 +150,7 @@ export async function getExerciseProgress(
 
   const { data: sets, error: setsError } = await supabase
     .from("sets")
-    .select("workout_id, weight_kg, reps")
+    .select("workout_id, weight_kg, reps, rest_seconds")
     .eq("exercise_id", exerciseId)
     .in("workout_id", workoutIds)
     .not("weight_kg", "is", null);
@@ -174,6 +175,7 @@ export async function getExerciseProgress(
         estimatedOneRepMax: Math.round(estimatedOneRepMax * 10) / 10,
         maxWeight: set.weight_kg,
         bestReps: set.reps,
+        bestSetRestSeconds: set.rest_seconds,
       });
     }
   }

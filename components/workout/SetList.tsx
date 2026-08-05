@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/Button";
+import { RestTimer } from "@/components/workout/RestTimer";
 import { SetRow, type LocalSet } from "@/components/workout/SetRow";
 
 type SetListProps = {
@@ -9,6 +10,7 @@ type SetListProps = {
   onChangeSet: (localId: string, next: LocalSet) => void;
   onDeleteSet: (localId: string) => void;
   onAddSet: () => void;
+  onRestElapsedChange: (precedingSetLocalId: string, seconds: number) => void;
 };
 
 export function SetList({
@@ -17,6 +19,7 @@ export function SetList({
   onChangeSet,
   onDeleteSet,
   onAddSet,
+  onRestElapsedChange,
 }: SetListProps) {
   return (
     <div className="space-y-3">
@@ -26,14 +29,23 @@ export function SetList({
         </p>
       ) : (
         sets.map((set, index) => (
-          <SetRow
-            key={set.localId}
-            set={set}
-            index={index}
-            disabled={disabled}
-            onChange={(next) => onChangeSet(set.localId, next)}
-            onDelete={() => onDeleteSet(set.localId)}
-          />
+          <div key={set.localId} className="space-y-2">
+            <SetRow
+              set={set}
+              index={index}
+              disabled={disabled}
+              onChange={(next) => onChangeSet(set.localId, next)}
+              onDelete={() => onDeleteSet(set.localId)}
+            />
+            <RestTimer
+              key={`${set.localId}-${sets[index + 1]?.id ?? "pending"}-${sets[index + 1]?.restSeconds ?? "none"}`}
+              disabled={disabled}
+              initialSeconds={sets[index + 1]?.restSeconds ?? null}
+              onElapsedChange={(seconds) =>
+                onRestElapsedChange(set.localId, seconds)
+              }
+            />
+          </div>
         ))
       )}
 

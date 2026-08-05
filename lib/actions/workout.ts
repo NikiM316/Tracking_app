@@ -359,6 +359,7 @@ type UpsertSetInput = {
   weight: number | null;
   reps: number;
   setOrder: number;
+  restSeconds?: number | null;
 };
 
 export async function upsertSet(
@@ -373,6 +374,7 @@ export async function upsertSet(
     weight_kg: input.weight,
     reps: input.reps,
     set_order: input.setOrder,
+    rest_seconds: input.restSeconds ?? null,
   };
 
   if (input.id) {

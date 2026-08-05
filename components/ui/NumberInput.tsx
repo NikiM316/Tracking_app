@@ -71,6 +71,9 @@ export function NumberInput({
         <input
           type="number"
           inputMode="decimal"
+          min={min}
+          max={max}
+          step={step}
           disabled={disabled}
           value={value ?? ""}
           onChange={(event) => handleInputChange(event.target.value)}
