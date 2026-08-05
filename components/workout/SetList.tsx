@@ -7,18 +7,24 @@ import { SetRow, type LocalSet } from "@/components/workout/SetRow";
 type SetListProps = {
   sets: LocalSet[];
   disabled?: boolean;
+  canGenerateWarmups?: boolean;
+  isGeneratingWarmups?: boolean;
   onChangeSet: (localId: string, next: LocalSet) => void;
   onDeleteSet: (localId: string) => void;
   onAddSet: () => void;
+  onGenerateWarmups?: () => void;
   onRestElapsedChange: (precedingSetLocalId: string, seconds: number) => void;
 };
 
 export function SetList({
   sets,
   disabled = false,
+  canGenerateWarmups = false,
+  isGeneratingWarmups = false,
   onChangeSet,
   onDeleteSet,
   onAddSet,
+  onGenerateWarmups,
   onRestElapsedChange,
 }: SetListProps) {
   return (
@@ -48,6 +54,17 @@ export function SetList({
           </div>
         ))
       )}
+
+      {canGenerateWarmups && onGenerateWarmups ? (
+        <Button
+          variant="secondary"
+          fullWidth
+          disabled={disabled || isGeneratingWarmups}
+          onClick={onGenerateWarmups}
+        >
+          {isGeneratingWarmups ? "Generating warm-ups…" : "Generate Warm-ups"}
+        </Button>
+      ) : null}
 
       <Button
         variant="secondary"

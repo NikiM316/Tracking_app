@@ -5,16 +5,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { ExerciseBlock } from "@/components/workout/ExerciseBlock";
 import type { LocalSet } from "@/components/workout/SetRow";
+import { WaterTracker } from "@/components/workout/WaterTracker";
 import { WorkoutCompleteSummary } from "@/components/workout/WorkoutCompleteSummary";
 import {
   deleteSet,
   finishWorkout,
+  getPreviousTopSet,
+  incrementWaterMl,
   upsertExerciseNote,
   upsertSet,
   upsertWorkout,
   type TodayWorkoutData,
 } from "@/lib/actions/workout";
-import type { Set as DbSet } from "@/lib/supabase/types";
+import type { Exercise, Set as DbSet } from "@/lib/supabase/types";
+import { buildSmartWarmups } from "@/lib/utils/warmups";
 
 const SAVE_DEBOUNCE_MS = 3000;
 const SAVE_FLASH_MS = 3800;
@@ -69,6 +73,110 @@ function createEmptySet(setOrder: number): LocalSet {
   };
 }
 
+function createSmartWarmupSet(
+  setOrder: number,
+  weightKg: number,
+  reps: number,
+): LocalSet {
+  return {
+    localId: createLocalId(),
+    set_category: "warmup",
+    weight: weightKg,
+    reps,
+    set_order: setOrder,
+    isSmartWarmup: true,
+    dirty: true,
+    saving: false,
+  };
+}
+
+function renumberSets(sets: LocalSet[]): LocalSet[] {
+  return sets.map((set, index) => ({
+    ...set,
+    set_order: index + 1,
+    dirty: true,
+  }));
+}
+
+function recalculateSmartWarmups(
+  sets: LocalSet[],
+  topWeightKg: number,
+  exercise: Pick<Exercise, "slug" | "name">,
+): LocalSet[] {
+  const prescriptions = buildSmartWarmups(topWeightKg, exercise);
+  let warmupIndex = 0;
+
+  return sets.map((set) => {
+    if (!set.isSmartWarmup) return set;
+    const prescription = prescriptions[warmupIndex];
+    warmupIndex += 1;
+    if (!prescription) return set;
+    if (set.weight === prescription.weightKg && set.reps === prescription.reps) {
+      return set;
+    }
+    return {
+      ...set,
+      weight: prescription.weightKg,
+      reps: prescription.reps,
+      dirty: true,
+    };
+  });
+}
+
+function insertSmartWarmups(
+  sets: LocalSet[],
+  topWeightKg: number,
+  exercise: Pick<Exercise, "slug" | "name">,
+): { nextSets: LocalSet[]; removedIds: string[] } {
+  const prescriptions = buildSmartWarmups(topWeightKg, exercise);
+  const removedIds = sets
+    .filter((set) => set.isSmartWarmup && set.id)
+    .map((set) => set.id!);
+  const withoutSmart = sets.filter((set) => !set.isSmartWarmup);
+
+  const topSetIndex = withoutSmart.findIndex(
+    (set) => set.set_category === "top_set",
+  );
+
+  const smartWarmups = prescriptions.map((prescription, index) =>
+    createSmartWarmupSet(index + 1, prescription.weightKg, prescription.reps),
+  );
+
+  let merged: LocalSet[];
+
+  if (topSetIndex >= 0) {
+    const topSet = withoutSmart[topSetIndex];
+    const updatedTopSet =
+      topSet.weight == null
+        ? { ...topSet, weight: topWeightKg, dirty: true }
+        : topSet;
+
+    merged = [
+      ...withoutSmart.slice(0, topSetIndex),
+      ...smartWarmups,
+      updatedTopSet,
+      ...withoutSmart.slice(topSetIndex + 1),
+    ];
+  } else {
+    const topSet: LocalSet = {
+      localId: createLocalId(),
+      set_category: "top_set",
+      weight: topWeightKg,
+      reps: null,
+      set_order: smartWarmups.length + 1,
+      dirty: true,
+      saving: false,
+    };
+    merged = [...smartWarmups, topSet, ...withoutSmart];
+  }
+
+  return { nextSets: renumberSets(merged), removedIds };
+}
+
+function supportsSmartWarmups(exercise: Exercise): boolean {
+  return exercise.category === "barbell";
+}
+
 function groupSetsByExercise(
   exercises: TodayWorkoutData["exercises"],
   sets: DbSet[],
@@ -95,6 +203,7 @@ function groupSetsByExercise(
 
 export function WorkoutForm({ initialData }: WorkoutFormProps) {
   const [workout, setWorkout] = useState(initialData.workout);
+  const [waterMl, setWaterMl] = useState(initialData.workout?.water_ml ?? 0);
   const [setsByExercise, setSetsByExercise] = useState(() =>
     groupSetsByExercise(initialData.exercises, initialData.sets),
   );
@@ -118,6 +227,9 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
     !initialData.workout && initialData.exercises.length > 0,
   );
   const [isFinishing, setIsFinishing] = useState(false);
+  const [generatingWarmupsByExercise, setGeneratingWarmupsByExercise] = useState<
+    Record<string, boolean>
+  >({});
 
   const setSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const noteSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -157,6 +269,7 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
       }
 
       setWorkout(result.workout);
+      setWaterMl(result.workout.water_ml);
       setIsPreparingWorkout(false);
     })();
 
@@ -247,11 +360,126 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
     scheduleSetSave(exerciseId, newSet.localId, newSet);
   }
 
+  function applyAndSaveSets(exerciseId: string, nextSets: LocalSet[]) {
+    updateExerciseSets(exerciseId, () => nextSets);
+    for (const set of nextSets) {
+      if (set.dirty) {
+        scheduleSetSave(exerciseId, set.localId, set);
+      }
+    }
+  }
+
+  async function handleGenerateWarmups(
+    exerciseId: string,
+    baseSets?: LocalSet[],
+    options?: { silent?: boolean },
+  ) {
+    const exercise = initialData.exercises.find((item) => item.id === exerciseId);
+    if (!exercise || !supportsSmartWarmups(exercise)) return;
+
+    if (!options?.silent) {
+      setErrorMessage(null);
+    }
+    setGeneratingWarmupsByExercise((current) => ({
+      ...current,
+      [exerciseId]: true,
+    }));
+
+    try {
+      const previousTop = await getPreviousTopSet(
+        exerciseId,
+        initialData.cycleDay,
+        workout?.id ?? undefined,
+      );
+
+      if (!previousTop) {
+        if (!options?.silent) {
+          setErrorMessage(
+            `No previous Top Set found for ${exercise.name} on ${initialData.programLabel ?? "this day"}.`,
+          );
+        }
+        return;
+      }
+
+      const currentSets = baseSets ?? setsByExercise[exerciseId] ?? [];
+      const existingTop = currentSets.find((set) => set.set_category === "top_set");
+      const topWeightKg = existingTop?.weight ?? previousTop.weightKg;
+
+      const { nextSets, removedIds } = insertSmartWarmups(
+        currentSets,
+        topWeightKg,
+        exercise,
+      );
+
+      for (const setId of removedIds) {
+        void deleteSet(setId);
+      }
+
+      applyAndSaveSets(exerciseId, nextSets);
+    } catch (error) {
+      if (!options?.silent) {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Failed to generate warm-up sets.",
+        );
+      }
+    } finally {
+      setGeneratingWarmupsByExercise((current) => ({
+        ...current,
+        [exerciseId]: false,
+      }));
+    }
+  }
+
   function handleChangeSet(exerciseId: string, localId: string, next: LocalSet) {
-    updateExerciseSets(exerciseId, (sets) =>
-      sets.map((set) => (set.localId === localId ? next : set)),
+    const exercise = initialData.exercises.find((item) => item.id === exerciseId);
+    const currentSets = setsByExercise[exerciseId] ?? [];
+    const previous = currentSets.find((set) => set.localId === localId);
+
+    // Manual edits to category take the set out of smart warm-up tracking.
+    const nextSet =
+      next.isSmartWarmup && next.set_category !== "warmup"
+        ? { ...next, isSmartWarmup: false }
+        : next;
+
+    let nextSets = currentSets.map((set) =>
+      set.localId === localId ? nextSet : set,
     );
-    scheduleSetSave(exerciseId, localId, next);
+
+    const becameTopSet =
+      previous != null &&
+      previous.set_category !== "top_set" &&
+      nextSet.set_category === "top_set";
+
+    const topWeightChanged =
+      nextSet.set_category === "top_set" &&
+      nextSet.weight != null &&
+      nextSet.weight > 0 &&
+      previous != null &&
+      previous.weight !== nextSet.weight;
+
+    const hasSmartWarmups = nextSets.some((set) => set.isSmartWarmup);
+
+    if (topWeightChanged && hasSmartWarmups && exercise) {
+      nextSets = recalculateSmartWarmups(nextSets, nextSet.weight!, exercise);
+      applyAndSaveSets(exerciseId, nextSets);
+      return;
+    }
+
+    updateExerciseSets(exerciseId, () => nextSets);
+    scheduleSetSave(exerciseId, localId, nextSet);
+
+    // Selecting Top set auto-generates warm-ups when none exist yet.
+    if (
+      becameTopSet &&
+      exercise &&
+      supportsSmartWarmups(exercise) &&
+      !hasSmartWarmups &&
+      !nextSets.some((set) => set.set_category === "warmup")
+    ) {
+      void handleGenerateWarmups(exerciseId, nextSets, { silent: true });
+    }
   }
 
   function handleRestElapsedChange(precedingSetLocalId: string, seconds: number) {
@@ -444,35 +672,84 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
       }
 
       setWorkout(result.workout);
+      setWaterMl(result.workout.water_ml);
+    })();
+  }
+
+  function handleAddWater(amountMl: number) {
+    if (!Number.isFinite(amountMl) || amountMl <= 0) return;
+
+    const previousWaterMl = waterMl;
+    const optimisticWaterMl = previousWaterMl + amountMl;
+
+    // Instant UI update; server write happens in the background.
+    setWaterMl(optimisticWaterMl);
+    setErrorMessage(null);
+
+    void (async () => {
+      const result = await incrementWaterMl(amountMl, initialData.cycleDay);
+
+      if (result.error || result.workout == null || result.waterMl == null) {
+        setWaterMl(previousWaterMl);
+        setErrorMessage(result.error ?? "Failed to update water intake.");
+        return;
+      }
+
+      setWorkout(result.workout);
+      setWaterMl(result.waterMl);
     })();
   }
 
   if (initialData.exercises.length === 0) {
     return (
-      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
-        <h2 className="text-lg font-semibold text-zinc-50">Rest / unprogrammed day</h2>
-        <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-          Day {initialData.cycleDay} is not in the program yet. Days 3–14 will be
-          added later.
-        </p>
-      </section>
+      <div className="space-y-5">
+        <WaterTracker waterMl={waterMl} onAdd={handleAddWater} />
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
+          <h2 className="text-lg font-semibold text-zinc-50">Rest / unprogrammed day</h2>
+          <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+            Day {initialData.cycleDay} is not in the program yet. Days 3–14 will be
+            added later.
+          </p>
+        </section>
+        {errorMessage ? (
+          <p
+            role="alert"
+            className="rounded-xl border border-red-900/50 bg-red-950/40 px-4 py-3 text-sm text-red-300"
+          >
+            {errorMessage}
+          </p>
+        ) : null}
+      </div>
     );
   }
 
   if (workout?.completed_at) {
     return (
-      <WorkoutCompleteSummary
-        programLabel={initialData.programLabel}
-        completedAt={workout.completed_at}
-        exercises={initialData.exercises}
-        setsByExercise={setsByExercise}
-        notesByExercise={notesByExercise}
-      />
+      <div className="space-y-5">
+        <WaterTracker waterMl={waterMl} onAdd={handleAddWater} />
+        <WorkoutCompleteSummary
+          programLabel={initialData.programLabel}
+          completedAt={workout.completed_at}
+          exercises={initialData.exercises}
+          setsByExercise={setsByExercise}
+          notesByExercise={notesByExercise}
+        />
+        {errorMessage ? (
+          <p
+            role="alert"
+            className="rounded-xl border border-red-900/50 bg-red-950/40 px-4 py-3 text-sm text-red-300"
+          >
+            {errorMessage}
+          </p>
+        ) : null}
+      </div>
     );
   }
 
   return (
     <div className="space-y-5">
+      <WaterTracker waterMl={waterMl} onAdd={handleAddWater} />
+
       <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
         <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">
           Today&apos;s session
@@ -498,11 +775,14 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
           sets={setsByExercise[exercise.id] ?? []}
           disabled={!canLogSets || isFinishing}
           currentWorkoutId={workout?.id ?? null}
+          canGenerateWarmups={supportsSmartWarmups(exercise)}
+          isGeneratingWarmups={Boolean(generatingWarmupsByExercise[exercise.id])}
           onChangeSet={(localId, next) =>
             handleChangeSet(exercise.id, localId, next)
           }
           onDeleteSet={(localId) => handleDeleteSet(exercise.id, localId)}
           onAddSet={() => handleAddSet(exercise.id)}
+          onGenerateWarmups={() => handleGenerateWarmups(exercise.id)}
           onRestElapsedChange={handleRestElapsedChange}
           previousNote={initialData.previousNotesByExercise[exercise.id] ?? null}
           noteValue={notesByExercise[exercise.id] ?? ""}

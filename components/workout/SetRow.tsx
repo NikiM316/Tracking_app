@@ -14,6 +14,8 @@ export type LocalSet = {
   reps: number | null;
   set_order: number;
   restSeconds?: number | null;
+  /** Marks warm-ups created by Smart Warm-up so they recalculate with top-set weight. */
+  isSmartWarmup?: boolean;
   dirty?: boolean;
   saving?: boolean;
   justSaved?: boolean;

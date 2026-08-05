@@ -10,6 +10,7 @@ type WorkoutHistoryAccordionProps = {
 };
 
 const setCategoryLabel: Record<string, string> = {
+  warmup: "Warm-up",
   top_set: "Top set",
   working_set: "Normal",
   back_off: "Back-off",

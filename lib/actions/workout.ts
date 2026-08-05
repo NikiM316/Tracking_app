@@ -7,6 +7,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Exercise, Set, SetCategory, Workout } from "@/lib/supabase/types";
 import { getCycleAnchorDate, getCycleDay } from "@/lib/utils/cycle-day";
 import { PLACEHOLDER_USER_ID } from "@/lib/utils/placeholder-user";
+import { WATER_INCREMENT_ML } from "@/lib/utils/water";
 
 type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
 
@@ -164,6 +165,91 @@ export async function getPreviousExerciseSession(
         sets: previousSets.sort((a, b) => a.set_order - b.set_order),
       };
     }
+  }
+
+  return null;
+}
+
+export type PreviousTopSet = {
+  weightKg: number;
+  reps: number;
+  workoutDate: string;
+  cycleDay: number;
+};
+
+/**
+ * Finds the Top Set from the most recent completed workout on the same
+ * cycle day (e.g. Push A → cycle_day 1) for the given exercise.
+ */
+export async function getPreviousTopSet(
+  exerciseId: string,
+  cycleDay: number,
+  excludeWorkoutId?: string,
+): Promise<PreviousTopSet | null> {
+  const supabase = createServerSupabaseClient();
+  const userId = getPlaceholderUserId();
+
+  const { data: completedWorkouts, error: workoutsError } = await supabase
+    .from("workouts")
+    .select("id, date, cycle_day")
+    .eq("user_id", userId)
+    .eq("cycle_day", cycleDay)
+    .not("completed_at", "is", null)
+    .order("date", { ascending: false });
+
+  if (workoutsError) {
+    throw new Error(
+      `Failed to fetch previous top set workouts: ${workoutsError.message}`,
+    );
+  }
+
+  const relevantWorkouts = (completedWorkouts ?? []).filter(
+    (workout) => workout.id !== excludeWorkoutId,
+  );
+
+  if (relevantWorkouts.length === 0) {
+    return null;
+  }
+
+  const workoutIds = relevantWorkouts.map((workout) => workout.id);
+
+  const { data: sets, error: setsError } = await supabase
+    .from("sets")
+    .select("workout_id, weight_kg, reps, set_order")
+    .eq("exercise_id", exerciseId)
+    .eq("set_category", "top_set")
+    .in("workout_id", workoutIds)
+    .not("weight_kg", "is", null)
+    .order("set_order", { ascending: true });
+
+  if (setsError) {
+    throw new Error(`Failed to fetch previous top sets: ${setsError.message}`);
+  }
+
+  if (!sets || sets.length === 0) {
+    return null;
+  }
+
+  const setsByWorkoutId = new Map<string, typeof sets>();
+  for (const set of sets) {
+    const list = setsByWorkoutId.get(set.workout_id) ?? [];
+    list.push(set);
+    setsByWorkoutId.set(set.workout_id, list);
+  }
+
+  for (const workout of relevantWorkouts) {
+    const topSets = setsByWorkoutId.get(workout.id);
+    if (!topSets || topSets.length === 0) continue;
+
+    const topSet = topSets[0];
+    if (topSet.weight_kg == null) continue;
+
+    return {
+      weightKg: Number(topSet.weight_kg),
+      reps: topSet.reps,
+      workoutDate: workout.date,
+      cycleDay: workout.cycle_day,
+    };
   }
 
   return null;
@@ -349,6 +435,52 @@ export async function finishWorkout(
   revalidatePath("/today");
   revalidatePath("/history");
   return { workout };
+}
+
+export async function incrementWaterMl(
+  amountMl: number = WATER_INCREMENT_ML,
+  cycleDay?: number,
+): Promise<
+  | { waterMl: number; workout: Workout; error?: undefined }
+  | { waterMl: null; workout: null; error: string }
+> {
+  if (!Number.isFinite(amountMl) || amountMl <= 0) {
+    return { waterMl: null, workout: null, error: "Water amount must be positive." };
+  }
+
+  const amount = Math.round(amountMl);
+  const supabase = createServerSupabaseClient();
+  const resolvedCycleDay = cycleDay ?? getCycleDay(getCycleAnchorDate());
+
+  const upserted = await upsertWorkout({ cycleDay: resolvedCycleDay });
+  if (upserted.error || !upserted.workout) {
+    return {
+      waterMl: null,
+      workout: null,
+      error: upserted.error ?? "Failed to prepare today's workout for water tracking.",
+    };
+  }
+
+  const { data: newTotal, error } = await supabase.rpc("increment_workout_water", {
+    p_workout_id: upserted.workout.id,
+    p_amount: amount,
+  });
+
+  if (error || typeof newTotal !== "number") {
+    return {
+      waterMl: null,
+      workout: null,
+      error: error?.message ?? "Failed to increment water intake.",
+    };
+  }
+
+  const workout: Workout = {
+    ...upserted.workout,
+    water_ml: newTotal,
+  };
+
+  revalidatePath("/today");
+  return { waterMl: newTotal, workout };
 }
 
 type UpsertSetInput = {

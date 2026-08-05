@@ -11,9 +11,12 @@ type ExerciseBlockProps = {
   sets: LocalSet[];
   disabled?: boolean;
   currentWorkoutId?: string | null;
+  canGenerateWarmups?: boolean;
+  isGeneratingWarmups?: boolean;
   onChangeSet: (localId: string, next: LocalSet) => void;
   onDeleteSet: (localId: string) => void;
   onAddSet: () => void;
+  onGenerateWarmups?: () => void;
   onRestElapsedChange: (precedingSetLocalId: string, seconds: number) => void;
   previousNote: string | null;
   noteValue: string;
@@ -34,9 +37,12 @@ export function ExerciseBlock({
   sets,
   disabled = false,
   currentWorkoutId = null,
+  canGenerateWarmups = false,
+  isGeneratingWarmups = false,
   onChangeSet,
   onDeleteSet,
   onAddSet,
+  onGenerateWarmups,
   onRestElapsedChange,
   previousNote,
   noteValue,
@@ -66,9 +72,12 @@ export function ExerciseBlock({
       <SetList
         sets={sets}
         disabled={disabled}
+        canGenerateWarmups={canGenerateWarmups}
+        isGeneratingWarmups={isGeneratingWarmups}
         onChangeSet={onChangeSet}
         onDeleteSet={onDeleteSet}
         onAddSet={onAddSet}
+        onGenerateWarmups={onGenerateWarmups}
         onRestElapsedChange={onRestElapsedChange}
       />
 

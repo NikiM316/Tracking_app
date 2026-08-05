@@ -21,6 +21,7 @@ export type Workout = {
   cycle_day: number;
   date: string;
   completed_at: string | null;
+  water_ml: number;
   created_at: string;
 };
 
@@ -59,10 +60,11 @@ export type Database = {
       };
       workouts: {
         Row: Workout;
-        Insert: Omit<Workout, "id" | "created_at" | "completed_at"> & {
+        Insert: Omit<Workout, "id" | "created_at" | "completed_at" | "water_ml"> & {
           id?: string;
           created_at?: string;
           completed_at?: string | null;
+          water_ml?: number;
         };
         Update: Partial<Omit<Workout, "id">>;
         Relationships: [];
@@ -88,7 +90,15 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      increment_workout_water: {
+        Args: {
+          p_workout_id: string;
+          p_amount: number;
+        };
+        Returns: number;
+      };
+    };
     Enums: {
       exercise_category: ExerciseCategory;
       set_category: SetCategory;
