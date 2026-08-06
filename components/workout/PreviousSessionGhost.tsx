@@ -1,16 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-import {
-  getPreviousExerciseSession,
-  type PreviousExerciseSession,
-  type PreviousSessionSet,
+import type {
+  PreviousExerciseSession,
+  PreviousSessionSet,
 } from "@/lib/actions/workout";
 
 type PreviousSessionGhostProps = {
-  exerciseId: string;
-  excludeWorkoutId?: string | null;
+  session: PreviousExerciseSession | null;
 };
 
 function formatPreviousSets(sets: PreviousSessionSet[]): string {
@@ -34,41 +30,9 @@ function formatPreviousSets(sets: PreviousSessionSet[]): string {
     .join(", ");
 }
 
-export function PreviousSessionGhost({
-  exerciseId,
-  excludeWorkoutId,
-}: PreviousSessionGhostProps) {
-  const [session, setSession] = useState<PreviousExerciseSession | null>(null);
-  const [hasLoaded, setHasLoaded] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      const previousSession = await getPreviousExerciseSession(
-        exerciseId,
-        excludeWorkoutId ?? undefined,
-      );
-
-      if (cancelled) return;
-
-      setSession(previousSession);
-      setHasLoaded(true);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [exerciseId, excludeWorkoutId]);
-
-  if (!hasLoaded) {
-    return null;
-  }
-
+export function PreviousSessionGhost({ session }: PreviousSessionGhostProps) {
   if (!session) {
-    return (
-      <p className="mb-3 text-xs text-zinc-500">No previous data</p>
-    );
+    return <p className="mb-3 text-xs text-zinc-500">No previous data</p>;
   }
 
   return (

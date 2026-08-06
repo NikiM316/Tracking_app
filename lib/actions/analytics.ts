@@ -24,7 +24,12 @@ function parseLocalDate(dateStr: string): Date {
   return date;
 }
 
-export type ConsistencyDayStatus = "logged" | "rest" | "missed" | "future";
+export type ConsistencyDayStatus =
+  | "logged"
+  | "pending"
+  | "rest"
+  | "missed"
+  | "future";
 
 export type ConsistencyDay = {
   date: string;
@@ -50,9 +55,10 @@ export async function getConsistencyCalendar(): Promise<ConsistencyDay[]> {
     Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) +
     1;
 
+  // Include completed_at so in-progress workouts (null) are not treated as logged.
   const { data: workouts, error } = await supabase
     .from("workouts")
-    .select("date")
+    .select("date, completed_at")
     .eq("user_id", userId)
     .gte("date", toDateString(startDate))
     .lte("date", toDateString(today));
@@ -61,7 +67,16 @@ export async function getConsistencyCalendar(): Promise<ConsistencyDay[]> {
     throw new Error(`Failed to fetch workouts for calendar: ${error.message}`);
   }
 
-  const loggedDates = new Set((workouts ?? []).map((workout) => workout.date));
+  const completedDates = new Set<string>();
+  const pendingDates = new Set<string>();
+
+  for (const workout of workouts ?? []) {
+    if (workout.completed_at != null) {
+      completedDates.add(workout.date);
+    } else {
+      pendingDates.add(workout.date);
+    }
+  }
 
   const days: ConsistencyDay[] = [];
 
@@ -75,8 +90,11 @@ export async function getConsistencyCalendar(): Promise<ConsistencyDay[]> {
     const isRestDay = REST_CYCLE_DAYS.has(cycleDay);
 
     let status: ConsistencyDayStatus;
-    if (loggedDates.has(dateStr)) {
+    if (completedDates.has(dateStr)) {
+      // Only finishWorkout (completed_at set) counts as a logged day.
       status = "logged";
+    } else if (pendingDates.has(dateStr)) {
+      status = "pending";
     } else if (isRestDay) {
       status = "rest";
     } else {

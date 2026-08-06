@@ -10,13 +10,15 @@ type ConsistencyCalendarProps = {
 
 const STATUS_SQUARE_STYLES: Record<ConsistencyDay["status"], string> = {
   logged: "bg-emerald-500",
+  pending: "border border-amber-500/60 bg-amber-500/20",
   rest: "bg-zinc-700",
   missed: "bg-red-500/80",
   future: "border border-zinc-800 bg-zinc-900",
 };
 
 const STATUS_LABELS: Record<ConsistencyDay["status"], string> = {
-  logged: "Workout logged",
+  logged: "Workout completed",
+  pending: "Workout in progress",
   rest: "Scheduled rest day",
   missed: "Training day missed",
   future: "Upcoming",
@@ -134,7 +136,11 @@ export function ConsistencyCalendar({ days }: ConsistencyCalendarProps) {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-zinc-400">
         <span className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-[2px] bg-emerald-500" />
-          Logged
+          Completed
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-[2px] border border-amber-500/60 bg-amber-500/20" />
+          In progress
         </span>
         <span className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-[2px] bg-zinc-700" />

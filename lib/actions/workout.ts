@@ -104,12 +104,20 @@ export type PreviousExerciseSession = {
   sets: PreviousSessionSet[];
 };
 
-export async function getPreviousExerciseSession(
-  exerciseId: string,
+async function getPreviousSessionsByExercise(
+  supabase: SupabaseClient,
+  userId: string,
+  exerciseIds: string[],
   excludeWorkoutId?: string,
-): Promise<PreviousExerciseSession | null> {
-  const supabase = createServerSupabaseClient();
-  const userId = getPlaceholderUserId();
+): Promise<Record<string, PreviousExerciseSession | null>> {
+  const result: Record<string, PreviousExerciseSession | null> = {};
+  for (const exerciseId of exerciseIds) {
+    result[exerciseId] = null;
+  }
+
+  if (exerciseIds.length === 0) {
+    return result;
+  }
 
   const { data: completedWorkouts, error: workoutsError } = await supabase
     .from("workouts")
@@ -129,15 +137,15 @@ export async function getPreviousExerciseSession(
   );
 
   if (relevantWorkouts.length === 0) {
-    return null;
+    return result;
   }
 
   const workoutIds = relevantWorkouts.map((workout) => workout.id);
 
   const { data: sets, error: setsError } = await supabase
     .from("sets")
-    .select("workout_id, weight_kg, reps, set_order")
-    .eq("exercise_id", exerciseId)
+    .select("workout_id, exercise_id, weight_kg, reps, set_order")
+    .in("exercise_id", exerciseIds)
     .in("workout_id", workoutIds)
     .order("set_order", { ascending: true });
 
@@ -145,29 +153,49 @@ export async function getPreviousExerciseSession(
     throw new Error(`Failed to fetch previous sets: ${setsError.message}`);
   }
 
-  const setsByWorkoutId = new Map<string, PreviousSessionSet[]>();
-
+  const setsByExerciseAndWorkout = new Map<string, PreviousSessionSet[]>();
   for (const set of sets ?? []) {
-    const list = setsByWorkoutId.get(set.workout_id) ?? [];
+    const key = `${set.exercise_id}:${set.workout_id}`;
+    const list = setsByExerciseAndWorkout.get(key) ?? [];
     list.push({
       weight: set.weight_kg,
       reps: set.reps,
       set_order: set.set_order,
     });
-    setsByWorkoutId.set(set.workout_id, list);
+    setsByExerciseAndWorkout.set(key, list);
   }
 
-  for (const workout of relevantWorkouts) {
-    const previousSets = setsByWorkoutId.get(workout.id);
-    if (previousSets && previousSets.length > 0) {
-      return {
-        workoutDate: workout.date,
-        sets: previousSets.sort((a, b) => a.set_order - b.set_order),
-      };
+  for (const exerciseId of exerciseIds) {
+    for (const workout of relevantWorkouts) {
+      const previousSets = setsByExerciseAndWorkout.get(
+        `${exerciseId}:${workout.id}`,
+      );
+      if (previousSets && previousSets.length > 0) {
+        result[exerciseId] = {
+          workoutDate: workout.date,
+          sets: previousSets.sort((a, b) => a.set_order - b.set_order),
+        };
+        break;
+      }
     }
   }
 
-  return null;
+  return result;
+}
+
+export async function getPreviousExerciseSession(
+  exerciseId: string,
+  excludeWorkoutId?: string,
+): Promise<PreviousExerciseSession | null> {
+  const supabase = createServerSupabaseClient();
+  const userId = getPlaceholderUserId();
+  const sessions = await getPreviousSessionsByExercise(
+    supabase,
+    userId,
+    [exerciseId],
+    excludeWorkoutId,
+  );
+  return sessions[exerciseId] ?? null;
 }
 
 export type PreviousTopSet = {
@@ -177,17 +205,21 @@ export type PreviousTopSet = {
   cycleDay: number;
 };
 
-/**
- * Finds the Top Set from the most recent completed workout on the same
- * cycle day (e.g. Push A → cycle_day 1) for the given exercise.
- */
-export async function getPreviousTopSet(
-  exerciseId: string,
+async function getPreviousTopSetsByExercise(
+  supabase: SupabaseClient,
+  userId: string,
+  exerciseIds: string[],
   cycleDay: number,
   excludeWorkoutId?: string,
-): Promise<PreviousTopSet | null> {
-  const supabase = createServerSupabaseClient();
-  const userId = getPlaceholderUserId();
+): Promise<Record<string, PreviousTopSet | null>> {
+  const result: Record<string, PreviousTopSet | null> = {};
+  for (const exerciseId of exerciseIds) {
+    result[exerciseId] = null;
+  }
+
+  if (exerciseIds.length === 0) {
+    return result;
+  }
 
   const { data: completedWorkouts, error: workoutsError } = await supabase
     .from("workouts")
@@ -208,15 +240,15 @@ export async function getPreviousTopSet(
   );
 
   if (relevantWorkouts.length === 0) {
-    return null;
+    return result;
   }
 
   const workoutIds = relevantWorkouts.map((workout) => workout.id);
 
   const { data: sets, error: setsError } = await supabase
     .from("sets")
-    .select("workout_id, weight_kg, reps, set_order")
-    .eq("exercise_id", exerciseId)
+    .select("workout_id, exercise_id, weight_kg, reps, set_order")
+    .in("exercise_id", exerciseIds)
     .eq("set_category", "top_set")
     .in("workout_id", workoutIds)
     .not("weight_kg", "is", null)
@@ -226,33 +258,52 @@ export async function getPreviousTopSet(
     throw new Error(`Failed to fetch previous top sets: ${setsError.message}`);
   }
 
-  if (!sets || sets.length === 0) {
-    return null;
-  }
-
-  const setsByWorkoutId = new Map<string, typeof sets>();
-  for (const set of sets) {
-    const list = setsByWorkoutId.get(set.workout_id) ?? [];
+  const setsByExerciseAndWorkout = new Map<string, typeof sets>();
+  for (const set of sets ?? []) {
+    const key = `${set.exercise_id}:${set.workout_id}`;
+    const list = setsByExerciseAndWorkout.get(key) ?? [];
     list.push(set);
-    setsByWorkoutId.set(set.workout_id, list);
+    setsByExerciseAndWorkout.set(key, list);
   }
 
-  for (const workout of relevantWorkouts) {
-    const topSets = setsByWorkoutId.get(workout.id);
-    if (!topSets || topSets.length === 0) continue;
-
-    const topSet = topSets[0];
-    if (topSet.weight_kg == null) continue;
-
-    return {
-      weightKg: Number(topSet.weight_kg),
-      reps: topSet.reps,
-      workoutDate: workout.date,
-      cycleDay: workout.cycle_day,
-    };
+  for (const exerciseId of exerciseIds) {
+    for (const workout of relevantWorkouts) {
+      const topSets = setsByExerciseAndWorkout.get(`${exerciseId}:${workout.id}`);
+      if (!topSets || topSets.length === 0) continue;
+      const topSet = topSets[0];
+      if (topSet.weight_kg == null) continue;
+      result[exerciseId] = {
+        weightKg: Number(topSet.weight_kg),
+        reps: topSet.reps,
+        workoutDate: workout.date,
+        cycleDay: workout.cycle_day,
+      };
+      break;
+    }
   }
 
-  return null;
+  return result;
+}
+
+/**
+ * Finds the Top Set from the most recent completed workout on the same
+ * cycle day (e.g. Push A → cycle_day 1) for the given exercise.
+ */
+export async function getPreviousTopSet(
+  exerciseId: string,
+  cycleDay: number,
+  excludeWorkoutId?: string,
+): Promise<PreviousTopSet | null> {
+  const supabase = createServerSupabaseClient();
+  const userId = getPlaceholderUserId();
+  const topSets = await getPreviousTopSetsByExercise(
+    supabase,
+    userId,
+    [exerciseId],
+    cycleDay,
+    excludeWorkoutId,
+  );
+  return topSets[exerciseId] ?? null;
 }
 
 export type TodayWorkoutData = {
@@ -263,6 +314,8 @@ export type TodayWorkoutData = {
   sets: Set[];
   todayNotesByExercise: Record<string, string>;
   previousNotesByExercise: Record<string, string>;
+  previousSessionsByExercise: Record<string, PreviousExerciseSession | null>;
+  previousTopSetByExercise: Record<string, PreviousTopSet | null>;
 };
 
 export async function getTodayWorkoutData(): Promise<TodayWorkoutData> {
@@ -281,6 +334,8 @@ export async function getTodayWorkoutData(): Promise<TodayWorkoutData> {
       sets: [],
       todayNotesByExercise: {},
       previousNotesByExercise: {},
+      previousSessionsByExercise: {},
+      previousTopSetByExercise: {},
     };
   }
 
@@ -339,10 +394,27 @@ export async function getTodayWorkoutData(): Promise<TodayWorkoutData> {
     );
   }
 
+  const exerciseIds = orderedExercises.map((exercise) => exercise.id);
+
   const previousNotesByExercise = await getPreviousNotesByExercise(
     supabase,
     userId,
-    orderedExercises.map((exercise) => exercise.id),
+    exerciseIds,
+    workout?.id,
+  );
+
+  const previousSessionsByExercise = await getPreviousSessionsByExercise(
+    supabase,
+    userId,
+    exerciseIds,
+    workout?.id,
+  );
+
+  const previousTopSetByExercise = await getPreviousTopSetsByExercise(
+    supabase,
+    userId,
+    exerciseIds,
+    cycleDay,
     workout?.id,
   );
 
@@ -354,6 +426,8 @@ export async function getTodayWorkoutData(): Promise<TodayWorkoutData> {
     sets,
     todayNotesByExercise,
     previousNotesByExercise,
+    previousSessionsByExercise,
+    previousTopSetByExercise,
   };
 }
 

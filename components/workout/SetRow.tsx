@@ -14,8 +14,10 @@ export type LocalSet = {
   reps: number | null;
   set_order: number;
   restSeconds?: number | null;
-  /** Marks warm-ups created by Smart Warm-up so they recalculate with top-set weight. */
+  /** Marks warm-ups created by automatic Top-set warm-up generation. */
   isSmartWarmup?: boolean;
+  /** Shown when Top set is selected but no previous top-set data exists. */
+  noRecentWarmupData?: boolean;
   dirty?: boolean;
   saving?: boolean;
   justSaved?: boolean;
@@ -114,6 +116,10 @@ export function SetRow({
           onChange={(reps) => onChange({ ...set, reps, dirty: true })}
         />
       </div>
+
+      {set.noRecentWarmupData ? (
+        <p className="text-xs text-zinc-500">There is no recent data</p>
+      ) : null}
     </div>
   );
 }

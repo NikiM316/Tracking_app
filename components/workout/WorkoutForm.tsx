@@ -4,13 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { ExerciseBlock } from "@/components/workout/ExerciseBlock";
+import { clearRestTimerStorage } from "@/components/workout/RestTimer";
 import type { LocalSet } from "@/components/workout/SetRow";
 import { WaterTracker } from "@/components/workout/WaterTracker";
 import { WorkoutCompleteSummary } from "@/components/workout/WorkoutCompleteSummary";
 import {
   deleteSet,
   finishWorkout,
-  getPreviousTopSet,
   incrementWaterMl,
   upsertExerciseNote,
   upsertSet,
@@ -98,77 +98,45 @@ function renumberSets(sets: LocalSet[]): LocalSet[] {
   }));
 }
 
-function recalculateSmartWarmups(
-  sets: LocalSet[],
-  topWeightKg: number,
-  exercise: Pick<Exercise, "slug" | "name">,
-): LocalSet[] {
-  const prescriptions = buildSmartWarmups(topWeightKg, exercise);
-  let warmupIndex = 0;
-
-  return sets.map((set) => {
-    if (!set.isSmartWarmup) return set;
-    const prescription = prescriptions[warmupIndex];
-    warmupIndex += 1;
-    if (!prescription) return set;
-    if (set.weight === prescription.weightKg && set.reps === prescription.reps) {
-      return set;
-    }
-    return {
-      ...set,
-      weight: prescription.weightKg,
-      reps: prescription.reps,
-      dirty: true,
-    };
-  });
-}
-
 function insertSmartWarmups(
   sets: LocalSet[],
-  topWeightKg: number,
+  previousTopWeightKg: number,
   exercise: Pick<Exercise, "slug" | "name">,
+  topSetLocalId?: string,
 ): { nextSets: LocalSet[]; removedIds: string[] } {
-  const prescriptions = buildSmartWarmups(topWeightKg, exercise);
+  const prescriptions = buildSmartWarmups(previousTopWeightKg, exercise);
   const removedIds = sets
     .filter((set) => set.isSmartWarmup && set.id)
     .map((set) => set.id!);
-  const withoutSmart = sets.filter((set) => !set.isSmartWarmup);
+  const withoutSmart = sets
+    .filter((set) => !set.isSmartWarmup)
+    .map((set) =>
+      set.noRecentWarmupData ? { ...set, noRecentWarmupData: false } : set,
+    );
 
-  const topSetIndex = withoutSmart.findIndex(
-    (set) => set.set_category === "top_set",
-  );
+  let topSetIndex =
+    topSetLocalId != null
+      ? withoutSmart.findIndex((set) => set.localId === topSetLocalId)
+      : -1;
+  if (topSetIndex < 0) {
+    topSetIndex = withoutSmart.findIndex(
+      (set) => set.set_category === "top_set",
+    );
+  }
 
   const smartWarmups = prescriptions.map((prescription, index) =>
     createSmartWarmupSet(index + 1, prescription.weightKg, prescription.reps),
   );
 
-  let merged: LocalSet[];
-
-  if (topSetIndex >= 0) {
-    const topSet = withoutSmart[topSetIndex];
-    const updatedTopSet =
-      topSet.weight == null
-        ? { ...topSet, weight: topWeightKg, dirty: true }
-        : topSet;
-
-    merged = [
-      ...withoutSmart.slice(0, topSetIndex),
-      ...smartWarmups,
-      updatedTopSet,
-      ...withoutSmart.slice(topSetIndex + 1),
-    ];
-  } else {
-    const topSet: LocalSet = {
-      localId: createLocalId(),
-      set_category: "top_set",
-      weight: topWeightKg,
-      reps: null,
-      set_order: smartWarmups.length + 1,
-      dirty: true,
-      saving: false,
-    };
-    merged = [...smartWarmups, topSet, ...withoutSmart];
-  }
+  const merged =
+    topSetIndex >= 0
+      ? [
+          ...withoutSmart.slice(0, topSetIndex),
+          ...smartWarmups,
+          withoutSmart[topSetIndex],
+          ...withoutSmart.slice(topSetIndex + 1),
+        ]
+      : [...smartWarmups, ...withoutSmart];
 
   return { nextSets: renumberSets(merged), removedIds };
 }
@@ -227,9 +195,6 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
     !initialData.workout && initialData.exercises.length > 0,
   );
   const [isFinishing, setIsFinishing] = useState(false);
-  const [generatingWarmupsByExercise, setGeneratingWarmupsByExercise] = useState<
-    Record<string, boolean>
-  >({});
 
   const setSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const noteSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -248,6 +213,7 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
     () => Object.values(setsByExercise).reduce((sum, sets) => sum + sets.length, 0),
     [setsByExercise],
   );
+
 
   useEffect(() => {
     if (workout || initialData.exercises.length === 0) {
@@ -294,29 +260,31 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
       for (const timer of Object.values(noteFlashTimers.current)) clearTimeout(timer);
 
       const workoutId = workoutIdRef.current;
+      const pending = Object.values(pendingSetSaves.current);
+      const flushable = pending.filter(
+        (entry) => entry.set.reps != null && entry.set.reps >= 1,
+      );
 
       if (workoutId) {
-        for (const { exerciseId, set } of Object.values(pendingSetSaves.current)) {
-          if (set.reps != null && set.reps >= 1) {
-            const exerciseSets = setsByExercise[exerciseId] ?? [];
-            const restSeconds = getRestSecondsForSet(
-              exerciseSets,
-              set.localId,
-              restElapsedByPrecedingSetRef.current,
-              set.restSeconds,
-            );
+        for (const { exerciseId, set } of flushable) {
+          const exerciseSets = setsByExercise[exerciseId] ?? [];
+          const restSeconds = getRestSecondsForSet(
+            exerciseSets,
+            set.localId,
+            restElapsedByPrecedingSetRef.current,
+            set.restSeconds,
+          );
 
-            void upsertSet({
-              id: set.id,
-              workoutId,
-              exerciseId,
-              setCategory: set.set_category,
-              weight: set.weight,
-              reps: set.reps,
-              setOrder: set.set_order,
-              restSeconds,
-            });
-          }
+          void upsertSet({
+            id: set.id,
+            workoutId,
+            exerciseId,
+            setCategory: set.set_category,
+            weight: set.weight,
+            reps: set.reps!,
+            setOrder: set.set_order,
+            restSeconds,
+          });
         }
 
         for (const [exerciseId, note] of Object.entries(pendingNoteSaves.current)) {
@@ -369,46 +337,39 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
     }
   }
 
-  async function handleGenerateWarmups(
+  async function generateWarmupsForTopSet(
     exerciseId: string,
-    baseSets?: LocalSet[],
-    options?: { silent?: boolean },
+    topSetLocalId: string,
+    baseSets: LocalSet[],
   ) {
     const exercise = initialData.exercises.find((item) => item.id === exerciseId);
     if (!exercise || !supportsSmartWarmups(exercise)) return;
 
-    if (!options?.silent) {
-      setErrorMessage(null);
-    }
-    setGeneratingWarmupsByExercise((current) => ({
-      ...current,
-      [exerciseId]: true,
-    }));
-
     try {
-      const previousTop = await getPreviousTopSet(
-        exerciseId,
-        initialData.cycleDay,
-        workout?.id ?? undefined,
-      );
+      // Use server-prefetched previous top set so we don't call a Server Action
+      // from the client (which would refresh the route and remount the form).
+      const previousTop = initialData.previousTopSetByExercise[exerciseId] ?? null;
 
       if (!previousTop) {
-        if (!options?.silent) {
-          setErrorMessage(
-            `No previous Top Set found for ${exercise.name} on ${initialData.programLabel ?? "this day"}.`,
+        updateExerciseSets(exerciseId, (sets) => {
+          const target =
+            sets.find((set) => set.localId === topSetLocalId) ??
+            sets.find((set) => set.set_category === "top_set");
+          if (!target || target.set_category !== "top_set") return sets;
+          return sets.map((set) =>
+            set.localId === target.localId
+              ? { ...set, noRecentWarmupData: true }
+              : set,
           );
-        }
+        });
         return;
       }
 
-      const currentSets = baseSets ?? setsByExercise[exerciseId] ?? [];
-      const existingTop = currentSets.find((set) => set.set_category === "top_set");
-      const topWeightKg = existingTop?.weight ?? previousTop.weightKg;
-
       const { nextSets, removedIds } = insertSmartWarmups(
-        currentSets,
-        topWeightKg,
+        baseSets,
+        previousTop.weightKg,
         exercise,
+        topSetLocalId,
       );
 
       for (const setId of removedIds) {
@@ -417,18 +378,11 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
 
       applyAndSaveSets(exerciseId, nextSets);
     } catch (error) {
-      if (!options?.silent) {
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Failed to generate warm-up sets.",
-        );
-      }
-    } finally {
-      setGeneratingWarmupsByExercise((current) => ({
-        ...current,
-        [exerciseId]: false,
-      }));
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to generate warm-up sets.",
+      );
     }
   }
 
@@ -438,12 +392,17 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
     const previous = currentSets.find((set) => set.localId === localId);
 
     // Manual edits to category take the set out of smart warm-up tracking.
-    const nextSet =
+    let nextSet =
       next.isSmartWarmup && next.set_category !== "warmup"
         ? { ...next, isSmartWarmup: false }
         : next;
 
-    let nextSets = currentSets.map((set) =>
+    // Clear the no-data hint when leaving Top set.
+    if (nextSet.noRecentWarmupData && nextSet.set_category !== "top_set") {
+      nextSet = { ...nextSet, noRecentWarmupData: false };
+    }
+
+    const nextSets = currentSets.map((set) =>
       set.localId === localId ? nextSet : set,
     );
 
@@ -452,33 +411,12 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
       previous.set_category !== "top_set" &&
       nextSet.set_category === "top_set";
 
-    const topWeightChanged =
-      nextSet.set_category === "top_set" &&
-      nextSet.weight != null &&
-      nextSet.weight > 0 &&
-      previous != null &&
-      previous.weight !== nextSet.weight;
-
-    const hasSmartWarmups = nextSets.some((set) => set.isSmartWarmup);
-
-    if (topWeightChanged && hasSmartWarmups && exercise) {
-      nextSets = recalculateSmartWarmups(nextSets, nextSet.weight!, exercise);
-      applyAndSaveSets(exerciseId, nextSets);
-      return;
-    }
-
     updateExerciseSets(exerciseId, () => nextSets);
     scheduleSetSave(exerciseId, localId, nextSet);
 
-    // Selecting Top set auto-generates warm-ups when none exist yet.
-    if (
-      becameTopSet &&
-      exercise &&
-      supportsSmartWarmups(exercise) &&
-      !hasSmartWarmups &&
-      !nextSets.some((set) => set.set_category === "warmup")
-    ) {
-      void handleGenerateWarmups(exerciseId, nextSets, { silent: true });
+    // Selecting Top set auto-generates warm-ups from the previous top-set weight.
+    if (becameTopSet && exercise && supportsSmartWarmups(exercise)) {
+      void generateWarmupsForTopSet(exerciseId, localId, nextSets);
     }
   }
 
@@ -530,24 +468,30 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
         return;
       }
 
-      const savedLocalId = result.set.id;
-
+      // Keep `localId` stable across saves so RestTimer / SetRow are not remounted
+      // when upsertSet assigns a DB id (that remount was resetting the rest timer).
       updateExerciseSets(exerciseId, (sets) =>
         sets.map((set) =>
           set.localId === localId
-            ? { ...toLocalSet(result.set), localId: savedLocalId, justSaved: true }
+            ? {
+                ...toLocalSet(result.set),
+                localId,
+                justSaved: true,
+                isSmartWarmup: set.isSmartWarmup,
+                noRecentWarmupData: set.noRecentWarmupData,
+              }
             : set,
         ),
       );
 
-      if (setFlashTimers.current[savedLocalId]) {
-        clearTimeout(setFlashTimers.current[savedLocalId]);
+      if (setFlashTimers.current[localId]) {
+        clearTimeout(setFlashTimers.current[localId]);
       }
-      setFlashTimers.current[savedLocalId] = setTimeout(() => {
-        delete setFlashTimers.current[savedLocalId];
+      setFlashTimers.current[localId] = setTimeout(() => {
+        delete setFlashTimers.current[localId];
         updateExerciseSets(exerciseId, (sets) =>
           sets.map((set) =>
-            set.localId === savedLocalId ? { ...set, justSaved: false } : set,
+            set.localId === localId ? { ...set, justSaved: false } : set,
           ),
         );
       }, SAVE_FLASH_MS);
@@ -566,6 +510,8 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
       delete setSaveTimers.current[localId];
     }
     delete pendingSetSaves.current[localId];
+    delete restElapsedByPrecedingSetRef.current[localId];
+    clearRestTimerStorage(localId);
 
     setErrorMessage(null);
 
@@ -774,15 +720,14 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
           exercise={exercise}
           sets={setsByExercise[exercise.id] ?? []}
           disabled={!canLogSets || isFinishing}
-          currentWorkoutId={workout?.id ?? null}
-          canGenerateWarmups={supportsSmartWarmups(exercise)}
-          isGeneratingWarmups={Boolean(generatingWarmupsByExercise[exercise.id])}
+          previousSession={
+            initialData.previousSessionsByExercise[exercise.id] ?? null
+          }
           onChangeSet={(localId, next) =>
             handleChangeSet(exercise.id, localId, next)
           }
           onDeleteSet={(localId) => handleDeleteSet(exercise.id, localId)}
           onAddSet={() => handleAddSet(exercise.id)}
-          onGenerateWarmups={() => handleGenerateWarmups(exercise.id)}
           onRestElapsedChange={handleRestElapsedChange}
           previousNote={initialData.previousNotesByExercise[exercise.id] ?? null}
           noteValue={notesByExercise[exercise.id] ?? ""}

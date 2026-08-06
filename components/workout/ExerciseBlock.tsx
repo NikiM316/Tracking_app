@@ -4,19 +4,17 @@ import { ExerciseNotesInput } from "@/components/workout/ExerciseNotesInput";
 import { PreviousSessionGhost } from "@/components/workout/PreviousSessionGhost";
 import { SetList } from "@/components/workout/SetList";
 import type { LocalSet } from "@/components/workout/SetRow";
+import type { PreviousExerciseSession } from "@/lib/actions/workout";
 import type { Exercise } from "@/lib/supabase/types";
 
 type ExerciseBlockProps = {
   exercise: Exercise;
   sets: LocalSet[];
   disabled?: boolean;
-  currentWorkoutId?: string | null;
-  canGenerateWarmups?: boolean;
-  isGeneratingWarmups?: boolean;
+  previousSession?: PreviousExerciseSession | null;
   onChangeSet: (localId: string, next: LocalSet) => void;
   onDeleteSet: (localId: string) => void;
   onAddSet: () => void;
-  onGenerateWarmups?: () => void;
   onRestElapsedChange: (precedingSetLocalId: string, seconds: number) => void;
   previousNote: string | null;
   noteValue: string;
@@ -36,13 +34,10 @@ export function ExerciseBlock({
   exercise,
   sets,
   disabled = false,
-  currentWorkoutId = null,
-  canGenerateWarmups = false,
-  isGeneratingWarmups = false,
+  previousSession = null,
   onChangeSet,
   onDeleteSet,
   onAddSet,
-  onGenerateWarmups,
   onRestElapsedChange,
   previousNote,
   noteValue,
@@ -64,20 +59,14 @@ export function ExerciseBlock({
         </span>
       </div>
 
-      <PreviousSessionGhost
-        exerciseId={exercise.id}
-        excludeWorkoutId={currentWorkoutId}
-      />
+      <PreviousSessionGhost session={previousSession} />
 
       <SetList
         sets={sets}
         disabled={disabled}
-        canGenerateWarmups={canGenerateWarmups}
-        isGeneratingWarmups={isGeneratingWarmups}
         onChangeSet={onChangeSet}
         onDeleteSet={onDeleteSet}
         onAddSet={onAddSet}
-        onGenerateWarmups={onGenerateWarmups}
         onRestElapsedChange={onRestElapsedChange}
       />
 
