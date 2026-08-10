@@ -1,3 +1,7 @@
+import type { FinanceEnums, FinanceTables } from "./finance-types";
+
+export * from "./finance-types";
+
 export type ExerciseCategory = "barbell" | "calisthenics" | "cardio" | "mobility";
 
 export type SetCategory =
@@ -48,7 +52,7 @@ export type ExerciseNote = {
 
 export type Database = {
   public: {
-    Tables: {
+    Tables: FinanceTables & {
       exercises: {
         Row: Exercise;
         Insert: Omit<Exercise, "id" | "created_at"> & {
@@ -99,7 +103,7 @@ export type Database = {
         Returns: number;
       };
     };
-    Enums: {
+    Enums: FinanceEnums & {
       exercise_category: ExerciseCategory;
       set_category: SetCategory;
     };
