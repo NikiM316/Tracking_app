@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import type { AccountWithBalance } from "@/features/finance/actions";
 
 type CashBalancesSectionProps = {
@@ -33,20 +35,36 @@ export function CashBalancesSection({ accounts }: CashBalancesSectionProps) {
 
   return (
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-lg font-semibold text-zinc-50">Net Worth / Cash Balances</h2>
         {accounts.length > 0 ? (
-          <span className="text-xs text-zinc-500">
-            {accounts.length} account{accounts.length === 1 ? "" : "s"}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-zinc-500">
+              {accounts.length} account{accounts.length === 1 ? "" : "s"}
+            </span>
+            <Link
+              href="/finance/accounts/new"
+              className="shrink-0 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
+            >
+              Add
+            </Link>
+          </div>
         ) : null}
       </div>
 
       {accounts.length === 0 ? (
-        <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-          No accounts yet. Add a checking, savings, or cash account to start tracking
-          your balances.
-        </p>
+        <div className="mt-3 space-y-4">
+          <p className="text-sm leading-relaxed text-zinc-400">
+            No accounts yet. Add a checking, savings, or cash account to start tracking
+            your balances.
+          </p>
+          <Link
+            href="/finance/accounts/new"
+            className="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-500 px-4 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
+          >
+            Add Account
+          </Link>
+        </div>
       ) : (
         <>
           {totalsByCurrency.size > 0 ? (

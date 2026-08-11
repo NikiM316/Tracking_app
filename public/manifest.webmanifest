@@ -2,7 +2,7 @@
   "name": "Cycle Tracker",
   "short_name": "Cycle",
   "description": "14-day hybrid fitness cycle tracker",
-  "start_url": "/today",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#09090b",
   "theme_color": "#09090b",

@@ -1,3 +1,4 @@
+import { HomeLink } from "@/features/core/components/HomeLink";
 import { CycleDaySelector } from "@/features/fitness/components/workout/CycleDaySelector";
 
 type CycleDayHeaderProps = {
@@ -19,19 +20,24 @@ export function CycleDayHeader({
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
       <div className="mx-auto w-full max-w-md px-4 py-4">
-        {workoutId ? (
-          <CycleDaySelector workoutId={workoutId} cycleDay={cycleDay} />
-        ) : (
-          <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">
-            Day {cycleDay} of 14
-          </p>
-        )}
-        <h1 className="mt-1 text-2xl font-bold tracking-tight text-zinc-50">
-          {label ?? "Hybrid Cycle"}
-        </h1>
-        {subtitle ? (
-          <p className="mt-1 text-sm text-zinc-400">{subtitle}</p>
-        ) : null}
+        <div className="flex items-start gap-2">
+          <HomeLink />
+          <div className="min-w-0 flex-1">
+            {workoutId ? (
+              <CycleDaySelector workoutId={workoutId} cycleDay={cycleDay} />
+            ) : (
+              <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">
+                Day {cycleDay} of 14
+              </p>
+            )}
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-zinc-50">
+              {label ?? "Hybrid Cycle"}
+            </h1>
+            {subtitle ? (
+              <p className="mt-1 text-sm text-zinc-400">{subtitle}</p>
+            ) : null}
+          </div>
+        </div>
       </div>
     </header>
   );

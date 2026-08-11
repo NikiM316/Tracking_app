@@ -1,7 +1,10 @@
+import Link from "next/link";
+
 import type { HoldingWithDetails } from "@/features/finance/actions";
 
 type PortfolioHoldingsSectionProps = {
   holdings: HoldingWithDetails[];
+  portfolioCount: number;
 };
 
 const SECURITY_TYPE_LABELS: Record<HoldingWithDetails["securityType"], string> = {
@@ -27,18 +30,61 @@ function formatCurrency(amount: number, currency: string): string {
   }
 }
 
-export function PortfolioHoldingsSection({ holdings }: PortfolioHoldingsSectionProps) {
+export function PortfolioHoldingsSection({
+  holdings,
+  portfolioCount,
+}: PortfolioHoldingsSectionProps) {
+  const visibleHoldings = holdings.filter((holding) => holding.quantity > 0);
+
   return (
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
-      <h2 className="text-lg font-semibold text-zinc-50">Investment Portfolio</h2>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-lg font-semibold text-zinc-50">Investment Portfolio</h2>
+        {portfolioCount > 0 ? (
+          <div className="flex items-center gap-3">
+            <Link
+              href="/finance/portfolios/new"
+              className="shrink-0 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
+            >
+              Add Portfolio
+            </Link>
+            <Link
+              href="/finance/investments/new"
+              className="shrink-0 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
+            >
+              Log Trade
+            </Link>
+          </div>
+        ) : null}
+      </div>
 
-      {holdings.length === 0 ? (
-        <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-          No holdings yet. Add a portfolio and log a buy to start tracking investments.
-        </p>
+      {portfolioCount === 0 ? (
+        <div className="mt-3 space-y-4">
+          <p className="text-sm leading-relaxed text-zinc-400">
+            No portfolios yet. Create one to start tracking crypto, stocks, and other assets.
+          </p>
+          <Link
+            href="/finance/portfolios/new"
+            className="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-500 px-4 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
+          >
+            Add Portfolio
+          </Link>
+        </div>
+      ) : visibleHoldings.length === 0 ? (
+        <div className="mt-3 space-y-4">
+          <p className="text-sm leading-relaxed text-zinc-400">
+            No holdings yet. Log a buy to populate this portfolio.
+          </p>
+          <Link
+            href="/finance/investments/new"
+            className="inline-flex min-h-12 w-full items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900 px-4 text-sm font-semibold text-zinc-100 transition-colors hover:bg-zinc-800"
+          >
+            Log Trade
+          </Link>
+        </div>
       ) : (
         <ul className="mt-4 divide-y divide-zinc-800">
-          {holdings.map((holding) => (
+          {visibleHoldings.map((holding) => (
             <li key={holding.id} className="flex items-center justify-between py-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-zinc-100">

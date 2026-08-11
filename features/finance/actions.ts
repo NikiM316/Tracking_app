@@ -5,6 +5,13 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type {
   FinanceAccount,
+  FinanceAccountType,
+  FinanceCategory,
+  FinanceCategoryKind,
+  FinanceInvestmentTransaction,
+  FinanceInvestmentTxType,
+  FinancePortfolio,
+  FinanceSecurity,
   FinanceSecurityType,
   FinanceTransaction,
   FinanceTransactionType,
@@ -88,6 +95,91 @@ export async function getAccounts(): Promise<AccountWithBalance[]> {
     ...account,
     balance: Number(account.opening_balance) + (netMovementByAccountId.get(account.id) ?? 0),
   }));
+}
+
+export type CreateAccountInput = {
+  name: string;
+  accountType: FinanceAccountType;
+  currency?: string;
+  openingBalance?: number;
+};
+
+/**
+ * Inserts a new cash/bank account for the current user.
+ */
+export async function createAccount(
+  input: CreateAccountInput,
+): Promise<{ account: FinanceAccount; error?: undefined } | { account: null; error: string }> {
+  const name = input.name.trim();
+  if (!name) {
+    return { account: null, error: "Account name is required." };
+  }
+
+  const currency = (input.currency ?? "EUR").trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) {
+    return { account: null, error: "Currency must be a 3-letter ISO code (e.g. EUR)." };
+  }
+
+  const openingBalance = input.openingBalance ?? 0;
+  if (!Number.isFinite(openingBalance)) {
+    return { account: null, error: "Opening balance must be a number." };
+  }
+
+  const supabase = createServerSupabaseClient();
+  const userId = getPlaceholderUserId();
+
+  const { data: account, error } = await supabase
+    .from("finance_accounts")
+    .insert({
+      user_id: userId,
+      name,
+      account_type: input.accountType,
+      currency,
+      opening_balance: openingBalance,
+    })
+    .select("*")
+    .single();
+
+  if (error || !account) {
+    return { account: null, error: error?.message ?? "Failed to create account" };
+  }
+
+  revalidatePath("/finance");
+  return { account };
+}
+
+// ---------------------------------------------------------------------------
+// Categories
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetches the current user's finance categories, optionally filtered by kind
+ * (expense vs income) for transaction forms.
+ */
+export async function getCategories(
+  kind?: FinanceCategoryKind,
+): Promise<FinanceCategory[]> {
+  const supabase = createServerSupabaseClient();
+  const userId = getPlaceholderUserId();
+
+  let query = supabase
+    .from("finance_categories")
+    .select("*")
+    .eq("user_id", userId)
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (kind) {
+    query = query.eq("kind", kind);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(`Failed to fetch categories: ${error.message}`);
+  }
+
+  return data ?? [];
 }
 
 // ---------------------------------------------------------------------------
@@ -265,6 +357,333 @@ export async function createTransaction(
 
   if (error || !transaction) {
     return { transaction: null, error: error?.message ?? "Failed to create transaction" };
+  }
+
+  revalidatePath("/finance");
+  return { transaction };
+}
+
+// ---------------------------------------------------------------------------
+// Investment portfolios, securities & trades
+// ---------------------------------------------------------------------------
+
+export type CreatePortfolioInput = {
+  name: string;
+  baseCurrency?: string;
+};
+
+/**
+ * Creates a new investment portfolio for the current user.
+ */
+export async function createPortfolio(
+  input: CreatePortfolioInput,
+): Promise<
+  { portfolio: FinancePortfolio; error?: undefined } | { portfolio: null; error: string }
+> {
+  const name = input.name.trim();
+  if (!name) {
+    return { portfolio: null, error: "Portfolio name is required." };
+  }
+
+  const baseCurrency = (input.baseCurrency ?? "EUR").trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(baseCurrency)) {
+    return { portfolio: null, error: "Currency must be a 3-letter ISO code (e.g. EUR)." };
+  }
+
+  const supabase = createServerSupabaseClient();
+  const userId = getPlaceholderUserId();
+
+  const { data: portfolio, error } = await supabase
+    .from("finance_portfolios")
+    .insert({
+      user_id: userId,
+      name,
+      base_currency: baseCurrency,
+    })
+    .select("*")
+    .single();
+
+  if (error || !portfolio) {
+    return { portfolio: null, error: error?.message ?? "Failed to create portfolio" };
+  }
+
+  revalidatePath("/finance");
+  return { portfolio };
+}
+
+/**
+ * Lists the current user's investment portfolios (active first by creation order).
+ */
+export async function getPortfolios(): Promise<FinancePortfolio[]> {
+  const supabase = createServerSupabaseClient();
+  const userId = getPlaceholderUserId();
+
+  const { data, error } = await supabase
+    .from("finance_portfolios")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_archived", false)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to fetch portfolios: ${error.message}`);
+  }
+
+  return data ?? [];
+}
+
+export type CreateSecurityInput = {
+  symbol: string;
+  name: string;
+  securityType: FinanceSecurityType;
+  currency?: string;
+};
+
+/**
+ * Inserts a user-scoped security into the catalog (e.g. a custom crypto or stock ticker).
+ */
+export async function createSecurity(
+  input: CreateSecurityInput,
+): Promise<{ security: FinanceSecurity; error?: undefined } | { security: null; error: string }> {
+  const symbol = input.symbol.trim().toUpperCase();
+  const name = input.name.trim() || symbol;
+  if (!symbol) {
+    return { security: null, error: "Symbol is required." };
+  }
+
+  const currency = (input.currency ?? "EUR").trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) {
+    return { security: null, error: "Currency must be a 3-letter ISO code (e.g. EUR)." };
+  }
+
+  const supabase = createServerSupabaseClient();
+  const userId = getPlaceholderUserId();
+
+  const { data: security, error } = await supabase
+    .from("finance_securities")
+    .insert({
+      user_id: userId,
+      symbol,
+      name,
+      security_type: input.securityType,
+      currency,
+    })
+    .select("*")
+    .single();
+
+  if (error || !security) {
+    return { security: null, error: error?.message ?? "Failed to create security" };
+  }
+
+  revalidatePath("/finance");
+  return { security };
+}
+
+async function findOrCreateSecurity(input: CreateSecurityInput): Promise<
+  { security: FinanceSecurity; error?: undefined } | { security: null; error: string }
+> {
+  const symbol = input.symbol.trim().toUpperCase();
+  if (!symbol) {
+    return { security: null, error: "Symbol is required." };
+  }
+
+  const supabase = createServerSupabaseClient();
+  const userId = getPlaceholderUserId();
+
+  const { data: existingUserSecurity, error: userLookupError } = await supabase
+    .from("finance_securities")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("symbol", symbol)
+    .maybeSingle();
+
+  if (userLookupError) {
+    return { security: null, error: userLookupError.message };
+  }
+  if (existingUserSecurity) {
+    return { security: existingUserSecurity };
+  }
+
+  const { data: existingSharedSecurity, error: sharedLookupError } = await supabase
+    .from("finance_securities")
+    .select("*")
+    .is("user_id", null)
+    .eq("symbol", symbol)
+    .maybeSingle();
+
+  if (sharedLookupError) {
+    return { security: null, error: sharedLookupError.message };
+  }
+  if (existingSharedSecurity) {
+    return { security: existingSharedSecurity };
+  }
+
+  return createSecurity({
+    symbol,
+    name: input.name.trim() || symbol,
+    securityType: input.securityType,
+    currency: input.currency,
+  });
+}
+
+export type CreateInvestmentTransactionInput = {
+  portfolioId: string;
+  type: Extract<FinanceInvestmentTxType, "buy" | "sell">;
+  symbol: string;
+  name?: string;
+  securityType: FinanceSecurityType;
+  quantity: number;
+  price: number;
+  currency?: string;
+  tradeDate?: string;
+  notes?: string;
+};
+
+/**
+ * Logs a buy/sell investment trade. Finds or creates the security by symbol,
+ * inserts the investment transaction, then upserts finance_holdings with
+ * updated quantity and average cost (weighted average on buys).
+ */
+export async function createInvestmentTransaction(
+  input: CreateInvestmentTransactionInput,
+): Promise<
+  | {
+      transaction: FinanceInvestmentTransaction;
+      error?: undefined;
+    }
+  | { transaction: null; error: string }
+> {
+  if (input.type !== "buy" && input.type !== "sell") {
+    return { transaction: null, error: "Trade type must be buy or sell." };
+  }
+  if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
+    return { transaction: null, error: "Quantity must be a positive number." };
+  }
+  if (!Number.isFinite(input.price) || input.price < 0) {
+    return { transaction: null, error: "Price must be zero or greater." };
+  }
+
+  const supabase = createServerSupabaseClient();
+  const userId = getPlaceholderUserId();
+
+  const { data: portfolio, error: portfolioError } = await supabase
+    .from("finance_portfolios")
+    .select("id, base_currency")
+    .eq("id", input.portfolioId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (portfolioError) {
+    return { transaction: null, error: portfolioError.message };
+  }
+  if (!portfolio) {
+    return { transaction: null, error: "Portfolio not found." };
+  }
+
+  const currency =
+    (input.currency ?? portfolio.base_currency ?? "EUR").trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) {
+    return { transaction: null, error: "Currency must be a 3-letter ISO code (e.g. EUR)." };
+  }
+
+  const securityResult = await findOrCreateSecurity({
+    symbol: input.symbol,
+    name: input.name ?? input.symbol,
+    securityType: input.securityType,
+    currency,
+  });
+  if (securityResult.error || !securityResult.security) {
+    return { transaction: null, error: securityResult.error ?? "Failed to resolve security." };
+  }
+
+  const security = securityResult.security;
+  const amount = Number((input.quantity * input.price).toFixed(2));
+  const tradeDate = input.tradeDate ?? getTodayDateString();
+
+  const { data: existingHolding, error: holdingLookupError } = await supabase
+    .from("finance_holdings")
+    .select("*")
+    .eq("portfolio_id", input.portfolioId)
+    .eq("security_id", security.id)
+    .maybeSingle();
+
+  if (holdingLookupError) {
+    return { transaction: null, error: holdingLookupError.message };
+  }
+
+  const previousQuantity = Number(existingHolding?.quantity ?? 0);
+  const previousAverageCost = Number(existingHolding?.average_cost ?? 0);
+
+  if (input.type === "sell" && input.quantity > previousQuantity) {
+    return {
+      transaction: null,
+      error: `Cannot sell ${input.quantity}; only ${previousQuantity} available.`,
+    };
+  }
+
+  const { data: transaction, error: transactionError } = await supabase
+    .from("finance_investment_transactions")
+    .insert({
+      user_id: userId,
+      portfolio_id: input.portfolioId,
+      security_id: security.id,
+      type: input.type,
+      trade_date: tradeDate,
+      quantity: input.quantity,
+      price: input.price,
+      amount,
+      currency,
+      notes: input.notes ?? null,
+    })
+    .select("*")
+    .single();
+
+  if (transactionError || !transaction) {
+    return {
+      transaction: null,
+      error: transactionError?.message ?? "Failed to create investment transaction",
+    };
+  }
+
+  let nextQuantity: number;
+  let nextAverageCost: number;
+
+  if (input.type === "buy") {
+    nextQuantity = previousQuantity + input.quantity;
+    nextAverageCost =
+      nextQuantity === 0
+        ? 0
+        : (previousQuantity * previousAverageCost + input.quantity * input.price) / nextQuantity;
+  } else {
+    nextQuantity = previousQuantity - input.quantity;
+    nextAverageCost = nextQuantity === 0 ? 0 : previousAverageCost;
+  }
+
+  if (existingHolding) {
+    const { error: updateError } = await supabase
+      .from("finance_holdings")
+      .update({
+        quantity: nextQuantity,
+        average_cost: nextAverageCost,
+        currency,
+      })
+      .eq("id", existingHolding.id);
+
+    if (updateError) {
+      return { transaction: null, error: updateError.message };
+    }
+  } else {
+    const { error: insertError } = await supabase.from("finance_holdings").insert({
+      portfolio_id: input.portfolioId,
+      security_id: security.id,
+      quantity: nextQuantity,
+      average_cost: nextAverageCost,
+      currency,
+    });
+
+    if (insertError) {
+      return { transaction: null, error: insertError.message };
+    }
   }
 
   revalidatePath("/finance");

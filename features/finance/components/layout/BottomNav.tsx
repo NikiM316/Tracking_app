@@ -11,28 +11,8 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   {
-    href: "/today",
-    label: "Gym",
-    icon: (
-      <svg
-        aria-hidden="true"
-        className="h-6 w-6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.75}
-        viewBox="0 0 24 24"
-      >
-        <path
-          d="M6.5 6.5l11 11m-11 0l11-11M4 9l2-2m14 8l2 2M4 15l2 2m14-8l2-2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    ),
-  },
-  {
     href: "/finance",
-    label: "Finance",
+    label: "Dashboard",
     icon: (
       <svg
         aria-hidden="true"
@@ -43,7 +23,7 @@ const navItems: NavItem[] = [
         viewBox="0 0 24 24"
       >
         <path
-          d="M12 2v20m5-15H9.5a2.5 2.5 0 000 5h5a2.5 2.5 0 010 5H6"
+          d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v9a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 14a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1v-5z"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -57,7 +37,7 @@ export function BottomNav() {
 
   return (
     <nav
-      aria-label="Main navigation"
+      aria-label="Finance navigation"
       className="fixed inset-x-0 bottom-0 z-50 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/80"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >

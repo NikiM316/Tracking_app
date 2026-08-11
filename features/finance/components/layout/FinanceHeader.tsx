@@ -1,3 +1,5 @@
+import { HomeLink } from "@/features/core/components/HomeLink";
+
 type FinanceHeaderProps = {
   title?: string;
   subtitle?: string;
@@ -13,13 +15,18 @@ export function FinanceHeader({
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
       <div className="mx-auto w-full max-w-md px-4 py-4">
-        <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">
-          Overview
-        </p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight text-zinc-50">
-          {title}
-        </h1>
-        <p className="mt-1 text-sm text-zinc-400">{subtitle}</p>
+        <div className="flex items-start gap-2">
+          <HomeLink />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">
+              Overview
+            </p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-zinc-50">
+              {title}
+            </h1>
+            <p className="mt-1 text-sm text-zinc-400">{subtitle}</p>
+          </div>
+        </div>
       </div>
     </header>
   );

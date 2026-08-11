@@ -97,7 +97,7 @@ export function BottomNav() {
 
   return (
     <nav
-      aria-label="Main navigation"
+      aria-label="Fitness navigation"
       className="fixed inset-x-0 bottom-0 z-50 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/80"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
