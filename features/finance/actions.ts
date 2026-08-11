@@ -363,6 +363,101 @@ export async function createTransaction(
   return { transaction };
 }
 
+export type BulkImportTransactionRow = {
+  /** ISO date string (YYYY-MM-DD). */
+  date: string;
+  /** Signed amount: positive = income, negative = expense. */
+  amount: number;
+  description: string;
+};
+
+/**
+ * Bulk-inserts cashflow transactions parsed from a bank statement CSV into a
+ * single account. Type is derived from the sign of each row's amount; since
+ * the finance_transactions CHECK constraint requires a category on
+ * expense/income rows, imported rows fall back to the user's "Other" /
+ * "Other Income" system categories (falling back further to the first
+ * category of the matching kind if those seeded categories were renamed).
+ */
+export async function bulkInsertTransactions(
+  accountId: string,
+  transactions: BulkImportTransactionRow[],
+): Promise<{ count: number; error?: undefined } | { count: 0; error: string }> {
+  if (!accountId) {
+    return { count: 0, error: "Select an account to import into." };
+  }
+
+  const validRows = transactions.filter(
+    (row) => row.date && Number.isFinite(row.amount) && row.amount !== 0,
+  );
+
+  if (validRows.length === 0) {
+    return { count: 0, error: "No valid transaction rows to import." };
+  }
+
+  const supabase = createServerSupabaseClient();
+  const userId = getPlaceholderUserId();
+
+  const { data: account, error: accountError } = await supabase
+    .from("finance_accounts")
+    .select("id, currency")
+    .eq("id", accountId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (accountError) {
+    return { count: 0, error: accountError.message };
+  }
+  if (!account) {
+    return { count: 0, error: "Account not found." };
+  }
+
+  const [expenseCategories, incomeCategories] = await Promise.all([
+    getCategories("expense"),
+    getCategories("income"),
+  ]);
+
+  const defaultExpenseCategoryId =
+    expenseCategories.find((category) => category.name === "Other")?.id ??
+    expenseCategories[0]?.id;
+  const defaultIncomeCategoryId =
+    incomeCategories.find((category) => category.name === "Other Income")?.id ??
+    incomeCategories[0]?.id;
+
+  if (!defaultExpenseCategoryId || !defaultIncomeCategoryId) {
+    return {
+      count: 0,
+      error: "No expense/income categories found. Add categories before importing.",
+    };
+  }
+
+  const rowsToInsert = validRows.map((row) => {
+    const isIncome = row.amount > 0;
+    return {
+      user_id: userId,
+      account_id: accountId,
+      type: (isIncome ? "income" : "expense") as FinanceTransactionType,
+      amount: Math.abs(row.amount),
+      currency: account.currency,
+      date: row.date,
+      category_id: isIncome ? defaultIncomeCategoryId : defaultExpenseCategoryId,
+      payee: row.description || null,
+    };
+  });
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("finance_transactions")
+    .insert(rowsToInsert)
+    .select("id");
+
+  if (insertError) {
+    return { count: 0, error: insertError.message };
+  }
+
+  revalidatePath("/finance");
+  return { count: inserted?.length ?? 0 };
+}
+
 // ---------------------------------------------------------------------------
 // Investment portfolios, securities & trades
 // ---------------------------------------------------------------------------

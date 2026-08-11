@@ -36,6 +36,27 @@ export default async function FinanceHomePage() {
         style={{ marginBottom: "env(safe-area-inset-bottom)" }}
       >
         <Link
+          href="/finance/import"
+          aria-label="Import CSV"
+          className="pointer-events-auto inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-zinc-700 bg-zinc-900 px-4 text-sm font-semibold text-zinc-100 shadow-lg shadow-black/30 transition-colors hover:bg-zinc-800"
+        >
+          <svg
+            aria-hidden="true"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.25}
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M12 16V4m0 0L7 9m5-5l5 5M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Import CSV
+        </Link>
+        <Link
           href="/finance/investments/new"
           aria-label="Log trade"
           className="pointer-events-auto inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-zinc-700 bg-zinc-900 px-4 text-sm font-semibold text-zinc-100 shadow-lg shadow-black/30 transition-colors hover:bg-zinc-800"
