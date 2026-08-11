@@ -8,24 +8,65 @@ function isNewFormatSupabaseKey(key: string): boolean {
   return key.startsWith("sb_publishable_") || key.startsWith("sb_secret_");
 }
 
+function isNewFormatBearerToken(authorization: string | null): boolean {
+  if (!authorization) return false;
+  const token = authorization.replace(/^Bearer\s+/i, "").trim();
+  return (
+    token.startsWith("sb_publishable_") || token.startsWith("sb_secret_")
+  );
+}
+
 /**
- * New-format Supabase keys are not JWTs. supabase-js still sends them as
- * Authorization: Bearer by default for PostgREST, which the gateway rejects
- * (e.g. "JWT issued at future"). Strip that header when it equals the apikey.
+ * New-format Supabase keys (`sb_secret_…` / `sb_publishable_…`) are not JWTs.
+ * supabase-js still puts them in `Authorization: Bearer` for PostgREST by
+ * default. The API gateway then either rejects them as non-JWTs or intermittently
+ * surfaces that as "JWT issued at future".
+ *
+ * Auth for these keys belongs only in the `apikey` header — the gateway mints
+ * a short-lived JWT from that. This fetch wrapper:
+ * 1. Always keeps `apikey` set
+ * 2. Strips any Bearer token that is itself a new-format API key
+ * 3. Forces `cache: "no-store"` so Next.js never caches REST responses
+ * 4. Retries once on the known transient gateway JWT error
  */
 function createNewFormatKeyFetch(apiKey: string): typeof fetch {
   return async (input, init) => {
     const headers = new Headers(init?.headers);
-    const authorization = headers.get("Authorization");
+
+    if (!headers.has("apikey")) {
+      headers.set("apikey", apiKey);
+    }
 
     if (
       isNewFormatSupabaseKey(apiKey) &&
-      authorization === `Bearer ${apiKey}`
+      isNewFormatBearerToken(headers.get("Authorization"))
     ) {
       headers.delete("Authorization");
     }
 
-    return fetch(input, { ...init, headers });
+    // Avoid re-spreading the original headers object (which still contains the
+    // Bearer API key) so undici/Next cannot merge it back in.
+    const { headers: _ignoredHeaders, cache: _ignoredCache, ...rest } =
+      init ?? {};
+
+    const doFetch = () =>
+      fetch(input, {
+        ...rest,
+        headers,
+        cache: "no-store",
+      });
+
+    let response = await doFetch();
+
+    if (!response.ok) {
+      const body = await response.clone().text();
+      if (/JWT issued at future/i.test(body)) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        response = await doFetch();
+      }
+    }
+
+    return response;
   };
 }
 
