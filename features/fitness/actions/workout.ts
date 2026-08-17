@@ -2,23 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 
+import {
+  getOrCreateTodayWorkout,
+  getPlaceholderUserId,
+} from "@/features/fitness/lib/today-workout";
 import { getProgramDay } from "@/lib/program/cycle";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Exercise, Set, SetCategory, Workout } from "@/lib/supabase/types";
-import { getCycleAnchorDate, getCycleDay } from "@/lib/utils/cycle-day";
-import { PLACEHOLDER_USER_ID } from "@/lib/utils/placeholder-user";
 import { WATER_INCREMENT_ML } from "@/lib/utils/water";
 
 type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
-
-function getPlaceholderUserId(): string {
-  return process.env.PLACEHOLDER_USER_ID ?? PLACEHOLDER_USER_ID;
-}
-
-function getTodayDateString(): string {
-  const today = new Date();
-  return today.toISOString().slice(0, 10);
-}
 
 function orderExercisesByProgram(
   exercises: Exercise[],
@@ -318,44 +311,18 @@ export type TodayWorkoutData = {
   previousTopSetByExercise: Record<string, PreviousTopSet | null>;
 };
 
-export async function getTodaysWorkout(): Promise<Workout | null> {
-  const supabase = createServerSupabaseClient();
-  const userId = getPlaceholderUserId();
-  const workoutDate = getTodayDateString();
-
-  const { data: workout, error } = await supabase
-    .from("workouts")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("date", workoutDate)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`Failed to fetch today's workout: ${error.message}`);
-  }
-
-  return workout;
+export async function getTodaysWorkout(): Promise<Workout> {
+  return getOrCreateTodayWorkout();
 }
 
 export async function getTodayWorkoutData(): Promise<TodayWorkoutData> {
   const supabase = createServerSupabaseClient();
-  const calendarCycleDay = getCycleDay(getCycleAnchorDate());
-  const workoutDate = getTodayDateString();
   const userId = getPlaceholderUserId();
 
-  const { data: workout, error: workoutError } = await supabase
-    .from("workouts")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("date", workoutDate)
-    .maybeSingle();
-
-  if (workoutError) {
-    throw new Error(`Failed to fetch workout: ${workoutError.message}`);
-  }
-
-  // Prefer a manual override stored on today's workout row.
-  const cycleDay = workout?.cycle_day ?? calendarCycleDay;
+  // The row itself is the source of truth: it is seeded from the previous
+  // workout's cycle day and can be overridden manually for today.
+  const workout = await getOrCreateTodayWorkout();
+  const cycleDay = workout.cycle_day;
   const programDay = getProgramDay(cycleDay);
 
   if (!programDay) {
@@ -386,35 +353,30 @@ export async function getTodayWorkoutData(): Promise<TodayWorkoutData> {
     programDay.exerciseSlugs,
   );
 
-  let sets: Set[] = [];
-  let todayNotesByExercise: Record<string, string> = {};
+  const { data: setsData, error: setsError } = await supabase
+    .from("sets")
+    .select("*")
+    .eq("workout_id", workout.id)
+    .order("set_order", { ascending: true });
 
-  if (workout) {
-    const { data: setsData, error: setsError } = await supabase
-      .from("sets")
-      .select("*")
-      .eq("workout_id", workout.id)
-      .order("set_order", { ascending: true });
-
-    if (setsError) {
-      throw new Error(`Failed to fetch sets: ${setsError.message}`);
-    }
-
-    sets = setsData ?? [];
-
-    const { data: notesData, error: notesError } = await supabase
-      .from("exercise_notes")
-      .select("*")
-      .eq("workout_id", workout.id);
-
-    if (notesError) {
-      throw new Error(`Failed to fetch notes: ${notesError.message}`);
-    }
-
-    todayNotesByExercise = Object.fromEntries(
-      (notesData ?? []).map((note) => [note.exercise_id, note.note]),
-    );
+  if (setsError) {
+    throw new Error(`Failed to fetch sets: ${setsError.message}`);
   }
+
+  const sets = setsData ?? [];
+
+  const { data: notesData, error: notesError } = await supabase
+    .from("exercise_notes")
+    .select("*")
+    .eq("workout_id", workout.id);
+
+  if (notesError) {
+    throw new Error(`Failed to fetch notes: ${notesError.message}`);
+  }
+
+  const todayNotesByExercise = Object.fromEntries(
+    (notesData ?? []).map((note) => [note.exercise_id, note.note]),
+  );
 
   const exerciseIds = orderedExercises.map((exercise) => exercise.id);
 
@@ -422,14 +384,14 @@ export async function getTodayWorkoutData(): Promise<TodayWorkoutData> {
     supabase,
     userId,
     exerciseIds,
-    workout?.id,
+    workout.id,
   );
 
   const previousSessionsByExercise = await getPreviousSessionsByExercise(
     supabase,
     userId,
     exerciseIds,
-    workout?.id,
+    workout.id,
   );
 
   const previousTopSetByExercise = await getPreviousTopSetsByExercise(
@@ -437,7 +399,7 @@ export async function getTodayWorkoutData(): Promise<TodayWorkoutData> {
     userId,
     exerciseIds,
     cycleDay,
-    workout?.id,
+    workout.id,
   );
 
   return {
@@ -481,65 +443,6 @@ export async function updateWorkoutCycleDay(
   return { workout };
 }
 
-type UpsertWorkoutInput = {
-  cycleDay: number;
-  workoutDate?: string;
-};
-
-export async function upsertWorkout(
-  input: UpsertWorkoutInput,
-): Promise<{ workout: Workout; error?: undefined } | { workout: null; error: string }> {
-  const supabase = createServerSupabaseClient();
-  const userId = getPlaceholderUserId();
-  const workoutDate = input.workoutDate ?? getTodayDateString();
-
-  const { data: existingWorkout, error: existingError } = await supabase
-    .from("workouts")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("date", workoutDate)
-    .maybeSingle();
-
-  if (existingError) {
-    return { workout: null, error: existingError.message };
-  }
-
-  if (existingWorkout) {
-    const { data: workout, error } = await supabase
-      .from("workouts")
-      .update({
-        cycle_day: input.cycleDay,
-      })
-      .eq("id", existingWorkout.id)
-      .select("*")
-      .single();
-
-    if (error || !workout) {
-      return { workout: null, error: error?.message ?? "Failed to update workout" };
-    }
-
-    revalidatePath("/today");
-    return { workout };
-  }
-
-  const { data: workout, error } = await supabase
-    .from("workouts")
-    .insert({
-      user_id: userId,
-      cycle_day: input.cycleDay,
-      date: workoutDate,
-    })
-    .select("*")
-    .single();
-
-  if (error || !workout) {
-    return { workout: null, error: error?.message ?? "Failed to create workout" };
-  }
-
-  revalidatePath("/today");
-  return { workout };
-}
-
 export async function finishWorkout(
   workoutId: string,
 ): Promise<{ workout: Workout; error?: undefined } | { workout: null; error: string }> {
@@ -563,7 +466,6 @@ export async function finishWorkout(
 
 export async function incrementWaterMl(
   amountMl: number = WATER_INCREMENT_ML,
-  cycleDay?: number,
 ): Promise<
   | { waterMl: number; workout: Workout; error?: undefined }
   | { waterMl: null; workout: null; error: string }
@@ -574,19 +476,23 @@ export async function incrementWaterMl(
 
   const amount = Math.round(amountMl);
   const supabase = createServerSupabaseClient();
-  const resolvedCycleDay = cycleDay ?? getCycleDay(getCycleAnchorDate());
 
-  const upserted = await upsertWorkout({ cycleDay: resolvedCycleDay });
-  if (upserted.error || !upserted.workout) {
+  let todayWorkout: Workout;
+  try {
+    todayWorkout = await getOrCreateTodayWorkout();
+  } catch (cause) {
     return {
       waterMl: null,
       workout: null,
-      error: upserted.error ?? "Failed to prepare today's workout for water tracking.",
+      error:
+        cause instanceof Error
+          ? cause.message
+          : "Failed to prepare today's workout for water tracking.",
     };
   }
 
   const { data: newTotal, error } = await supabase.rpc("increment_workout_water", {
-    p_workout_id: upserted.workout.id,
+    p_workout_id: todayWorkout.id,
     p_amount: amount,
   });
 
@@ -599,7 +505,7 @@ export async function incrementWaterMl(
   }
 
   const workout: Workout = {
-    ...upserted.workout,
+    ...todayWorkout,
     water_ml: newTotal,
   };
 

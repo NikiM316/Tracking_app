@@ -14,7 +14,6 @@ import {
   incrementWaterMl,
   upsertExerciseNote,
   upsertSet,
-  upsertWorkout,
   type TodayWorkoutData,
 } from "@/features/fitness/actions/workout";
 import type { Exercise, Set as DbSet } from "@/lib/supabase/types";
@@ -191,9 +190,6 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
     Record<string, boolean>
   >({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isPreparingWorkout, setIsPreparingWorkout] = useState(
-    !initialData.workout,
-  );
   const [isFinishing, setIsFinishing] = useState(false);
 
   const setSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -214,38 +210,6 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
     [setsByExercise],
   );
 
-
-  useEffect(() => {
-    if (workout) {
-      return;
-    }
-
-    let cancelled = false;
-    // isPreparingWorkout is already true from useState when this path runs.
-    // Always create today's workout row (including rest days) so cycle-day
-    // override is available in the header.
-
-    (async () => {
-      const result = await upsertWorkout({ cycleDay: initialData.cycleDay });
-
-      if (cancelled) return;
-
-      if (result.error || !result.workout) {
-        setErrorMessage(result.error ?? "Failed to start today's workout.");
-        setIsPreparingWorkout(false);
-        return;
-      }
-
-      setWorkout(result.workout);
-      setWaterMl(result.workout.water_ml);
-      setIsPreparingWorkout(false);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     workoutIdRef.current = workout?.id ?? null;
@@ -649,7 +613,7 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
     setErrorMessage(null);
 
     void (async () => {
-      const result = await incrementWaterMl(amountMl, initialData.cycleDay);
+      const result = await incrementWaterMl(amountMl);
 
       if (result.error || result.workout == null || result.waterMl == null) {
         setWaterMl(previousWaterMl);
@@ -723,12 +687,6 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
           {exerciseCount} exercises · {totalSets} sets logged
         </p>
       </section>
-
-      {isPreparingWorkout ? (
-        <p className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900/30 px-4 py-3 text-center text-sm text-zinc-500">
-          Preparing today&apos;s workout…
-        </p>
-      ) : null}
 
       {initialData.exercises.map((exercise) => (
         <ExerciseBlock

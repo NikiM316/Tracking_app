@@ -27,7 +27,7 @@ function isNewFormatBearerToken(authorization: string | null): boolean {
  * 1. Always keeps `apikey` set
  * 2. Strips any Bearer token that is itself a new-format API key
  * 3. Forces `cache: "no-store"` so Next.js never caches REST responses
- * 4. Retries once on the known transient gateway JWT error
+ * 4. Retries a few times with backoff on the known transient gateway JWT error
  */
 function createNewFormatKeyFetch(apiKey: string): typeof fetch {
   return async (input, init) => {
@@ -58,12 +58,15 @@ function createNewFormatKeyFetch(apiKey: string): typeof fetch {
 
     let response = await doFetch();
 
-    if (!response.ok) {
+    // The gateway flake can survive a single retry; back off a few times
+    // before surfacing "JWT issued at future" to application code.
+    for (let attempt = 0; attempt < 3 && !response.ok; attempt++) {
       const body = await response.clone().text();
-      if (/JWT issued at future/i.test(body)) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        response = await doFetch();
+      if (!/JWT issued at future/i.test(body)) {
+        break;
       }
+      await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt));
+      response = await doFetch();
     }
 
     return response;

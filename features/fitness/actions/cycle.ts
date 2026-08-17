@@ -1,8 +1,8 @@
 "use server";
 
+import { getOrCreateTodayWorkout } from "@/features/fitness/lib/today-workout";
 import { CYCLE_PROGRAM, getProgramDay } from "@/lib/program/cycle";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getCycleAnchorDate, getCycleDay } from "@/lib/utils/cycle-day";
 
 export type CycleExercise = {
   slug: string;
@@ -68,8 +68,10 @@ export async function getCycleOverviewData(): Promise<CycleOverviewData> {
     };
   });
 
+  const todaysWorkout = await getOrCreateTodayWorkout();
+
   return {
-    currentCycleDay: getCycleDay(getCycleAnchorDate()),
+    currentCycleDay: todaysWorkout.cycle_day,
     days,
   };
 }
