@@ -5,10 +5,8 @@ import { useMemo, useState, useTransition } from "react";
 
 import { Button } from "@/features/core/components/Button";
 import { SegmentedControl } from "@/features/core/components/SegmentedControl";
-import {
-  createTransaction,
-  type AccountWithBalance,
-} from "@/features/finance/actions";
+import { createTransaction } from "@/features/finance/actions";
+import type { AccountWithBalance } from "@/features/finance/types";
 import type {
   FinanceCategory,
   FinanceTransactionType,
@@ -223,11 +221,16 @@ export function NewTransactionForm({ accounts, categories }: NewTransactionFormP
             onChange={(event) => setCategoryId(event.target.value)}
           >
             <option value="">Select a category</option>
-            {filteredCategories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
+            {filteredCategories.map((category) => {
+              const parentName = filteredCategories.find(
+                (item) => item.id === category.parent_id,
+              )?.name;
+              return (
+                <option key={category.id} value={category.id}>
+                  {parentName ? `${parentName} / ${category.name}` : category.name}
+                </option>
+              );
+            })}
           </select>
         </div>
       )}

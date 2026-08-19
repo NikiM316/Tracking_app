@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 
 import { Button } from "@/features/core/components/Button";
-import {
-  bulkInsertTransactions,
-  type AccountWithBalance,
-  type BulkImportTransactionRow,
-} from "@/features/finance/actions";
+import { bulkInsertTransactions } from "@/features/finance/actions";
+import type {
+  AccountWithBalance,
+  BulkImportTransactionRow,
+} from "@/features/finance/types";
 
 type ImportCsvFormProps = {
   accounts: AccountWithBalance[];

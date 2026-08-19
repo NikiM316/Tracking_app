@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import type { AccountWithBalance } from "@/features/finance/actions";
+import type { AccountWithBalance } from "@/features/finance/types";
 
 type CashBalancesSectionProps = {
   accounts: AccountWithBalance[];

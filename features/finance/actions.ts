@@ -2,17 +2,27 @@
 
 import { revalidatePath } from "next/cache";
 
+import type {
+  AccountWithBalance,
+  BulkImportTransactionRow,
+  CreateAccountInput,
+  CreateInvestmentTransactionInput,
+  CreatePortfolioInput,
+  CreateSecurityInput,
+  CreateTransactionInput,
+  HoldingWithDetails,
+  RecentTransaction,
+  UpdateTransactionData,
+} from "@/features/finance/types";
+import { ISO_DATE_PATTERN, parseCategoryId, UUID_PATTERN } from "@/features/finance/utils";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type {
   FinanceAccount,
-  FinanceAccountType,
   FinanceCategory,
   FinanceCategoryKind,
   FinanceInvestmentTransaction,
-  FinanceInvestmentTxType,
   FinancePortfolio,
   FinanceSecurity,
-  FinanceSecurityType,
   FinanceTransaction,
   FinanceTransactionType,
 } from "@/lib/supabase/finance-types";
@@ -30,11 +40,6 @@ function getTodayDateString(): string {
 // ---------------------------------------------------------------------------
 // Accounts
 // ---------------------------------------------------------------------------
-
-export type AccountWithBalance = FinanceAccount & {
-  /** opening_balance plus the signed sum of all cashflow transactions. */
-  balance: number;
-};
 
 /**
  * Fetches every account for the current user along with its derived balance
@@ -97,13 +102,6 @@ export async function getAccounts(): Promise<AccountWithBalance[]> {
   }));
 }
 
-export type CreateAccountInput = {
-  name: string;
-  accountType: FinanceAccountType;
-  currency?: string;
-  openingBalance?: number;
-};
-
 /**
  * Inserts a new cash/bank account for the current user.
  */
@@ -153,8 +151,9 @@ export async function createAccount(
 // ---------------------------------------------------------------------------
 
 /**
- * Fetches the current user's finance categories, optionally filtered by kind
- * (expense vs income) for transaction forms.
+ * Fetches every finance category for the current user, including nested
+ * subcategories (`parent_id` is not filtered). Optionally limited by kind
+ * for expense vs income forms. Ordered by name ascending.
  */
 export async function getCategories(
   kind?: FinanceCategoryKind,
@@ -166,7 +165,6 @@ export async function getCategories(
     .from("finance_categories")
     .select("*")
     .eq("user_id", userId)
-    .order("sort_order", { ascending: true })
     .order("name", { ascending: true });
 
   if (kind) {
@@ -186,117 +184,124 @@ export async function getCategories(
 // Transactions
 // ---------------------------------------------------------------------------
 
-export type RecentTransaction = {
-  id: string;
-  type: FinanceTransactionType;
-  amount: number;
-  currency: string;
-  date: string;
-  payee: string | null;
-  notes: string | null;
-  accountName: string;
-  categoryName: string | null;
-  transferAccountName: string | null;
+type TransactionRow = FinanceTransaction & {
+  finance_categories: { id: string; name: string } | null;
+  account: { name: string } | null;
+  transfer_account: { name: string } | null;
 };
 
+function resolveCategoryName(
+  type: FinanceTransactionType,
+  categoryId: string | null,
+  categoryName: string | null | undefined,
+): string {
+  if (categoryName?.trim()) {
+    return categoryName.trim();
+  }
+  if (type === "transfer" && !categoryId) {
+    return "Transfers";
+  }
+  return "Uncategorized";
+}
+
 /**
- * Fetches the most recent cashflow transactions for the current user,
- * enriched with account/category names for display (resolved with two
- * lookup queries rather than a Postgres embed, matching the manual-join
- * pattern used in features/fitness/actions/workout.ts).
+ * Fetches cashflow transactions for the current user with a left join onto
+ * categories and accounts so orphaned `category_id` values still return a row
+ * (displayed as "Uncategorized") instead of dropping the transaction.
  */
 export async function getRecentTransactions(
-  limit: number = 10,
+  limit?: number,
 ): Promise<RecentTransaction[]> {
   const supabase = createServerSupabaseClient();
   const userId = getPlaceholderUserId();
 
-  const { data: transactions, error: transactionsError } = await supabase
+  let joinedQuery = supabase
     .from("finance_transactions")
-    .select("*")
+    .select(
+      `
+      *,
+      finance_categories ( id, name ),
+      account:finance_accounts!account_id ( name ),
+      transfer_account:finance_accounts!transfer_account_id ( name )
+    `,
+    )
     .eq("user_id", userId)
     .order("date", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(limit);
+    .order("created_at", { ascending: false });
 
-  if (transactionsError) {
-    throw new Error(`Failed to fetch transactions: ${transactionsError.message}`);
+  if (typeof limit === "number") {
+    joinedQuery = joinedQuery.limit(limit);
   }
 
-  if (!transactions || transactions.length === 0) {
-    return [];
-  }
+  const [
+    { data: joinedRows, error: joinedError },
+    { data: allCategories },
+    { data: allAccounts },
+  ] = await Promise.all([
+    joinedQuery,
+    supabase
+      .from("finance_categories")
+      .select("id, name")
+      .eq("user_id", userId)
+      .order("name", { ascending: true }),
+    supabase.from("finance_accounts").select("id, name").eq("user_id", userId),
+  ]);
 
-  const accountIds = new Set<string>();
-  const categoryIds = new Set<string>();
-  for (const transaction of transactions) {
-    accountIds.add(transaction.account_id);
-    if (transaction.transfer_account_id) {
-      accountIds.add(transaction.transfer_account_id);
-    }
-    if (transaction.category_id) {
-      categoryIds.add(transaction.category_id);
-    }
-  }
-
-  const [{ data: accounts, error: accountsError }, { data: categories, error: categoriesError }] =
-    await Promise.all([
-      supabase.from("finance_accounts").select("id, name").in("id", [...accountIds]),
-      categoryIds.size > 0
-        ? supabase.from("finance_categories").select("id, name").in("id", [...categoryIds])
-        : Promise.resolve({ data: [], error: null }),
-    ]);
-
-  if (accountsError) {
-    throw new Error(`Failed to fetch accounts for transactions: ${accountsError.message}`);
-  }
-  if (categoriesError) {
-    throw new Error(`Failed to fetch categories for transactions: ${categoriesError.message}`);
-  }
-
-  const accountNameById = new Map((accounts ?? []).map((account) => [account.id, account.name]));
   const categoryNameById = new Map(
-    (categories ?? []).map((category) => [category.id, category.name]),
+    (allCategories ?? []).map((category) => [category.id, category.name]),
+  );
+  const accountNameById = new Map(
+    (allAccounts ?? []).map((account) => [account.id, account.name]),
   );
 
-  return transactions.map((transaction) => ({
-    id: transaction.id,
-    type: transaction.type,
-    amount: Number(transaction.amount),
-    currency: transaction.currency,
-    date: transaction.date,
-    payee: transaction.payee,
-    notes: transaction.notes,
-    accountName: accountNameById.get(transaction.account_id) ?? "Unknown account",
-    categoryName: transaction.category_id
-      ? categoryNameById.get(transaction.category_id) ?? null
-      : null,
-    transferAccountName: transaction.transfer_account_id
-      ? accountNameById.get(transaction.transfer_account_id) ?? null
-      : null,
-  }));
-}
+  let rows: FinanceTransaction[] = (joinedRows as unknown as FinanceTransaction[] | null) ?? [];
 
-export type CreateTransactionInput =
-  | {
-      type: "expense" | "income";
-      accountId: string;
-      categoryId: string;
-      amount: number;
-      currency?: string;
-      date?: string;
-      payee?: string;
-      notes?: string;
+  if (joinedError || !joinedRows) {
+    let transactionsQuery = supabase
+      .from("finance_transactions")
+      .select("*")
+      .eq("user_id", userId)
+      .order("date", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (typeof limit === "number") {
+      transactionsQuery = transactionsQuery.limit(limit);
     }
-  | {
-      type: "transfer";
-      accountId: string;
-      transferAccountId: string;
-      amount: number;
-      currency?: string;
-      date?: string;
-      notes?: string;
+
+    const { data: transactions, error: transactionsError } = await transactionsQuery;
+    if (transactionsError) {
+      throw new Error(`Failed to fetch transactions: ${transactionsError.message}`);
+    }
+    rows = transactions ?? [];
+  }
+
+  return rows.map((transaction) => {
+    const joined = transaction as TransactionRow;
+    const categoryId = joined.category_id;
+    const joinedCategoryName =
+      joined.finance_categories?.name ??
+      (categoryId ? (categoryNameById.get(categoryId) ?? null) : null);
+
+    return {
+      id: joined.id,
+      type: joined.type,
+      amount: Number(joined.amount),
+      currency: joined.currency,
+      date: joined.date,
+      payee: joined.payee,
+      notes: joined.notes,
+      accountName:
+        joined.account?.name ?? accountNameById.get(joined.account_id) ?? "Unknown account",
+      categoryId,
+      categoryName: resolveCategoryName(joined.type, categoryId, joinedCategoryName),
+      transferAccountName:
+        joined.transfer_account?.name ??
+        (joined.transfer_account_id
+          ? (accountNameById.get(joined.transfer_account_id) ?? null)
+          : null),
     };
+  });
+}
 
 /**
  * Inserts a single cashflow transaction. Transfers are stored as a single
@@ -320,6 +325,15 @@ export async function createTransaction(
   const supabase = createServerSupabaseClient();
   const userId = getPlaceholderUserId();
   const date = input.date ?? getTodayDateString();
+
+  let categoryId: string | null = null;
+  if (input.type !== "transfer") {
+    const parsedCategoryId = parseCategoryId(input.categoryId);
+    if (!parsedCategoryId) {
+      return { transaction: null, error: "Category id must be a valid UUID." };
+    }
+    categoryId = parsedCategoryId;
+  }
 
   // Branched (rather than building one merged payload object) so TypeScript
   // narrows `input` per-branch and matches each insert() call's Insert type.
@@ -348,7 +362,7 @@ export async function createTransaction(
             amount: input.amount,
             currency: input.currency,
             date,
-            category_id: input.categoryId,
+            category_id: categoryId,
             payee: input.payee ?? null,
             notes: input.notes ?? null,
           })
@@ -363,13 +377,161 @@ export async function createTransaction(
   return { transaction };
 }
 
-export type BulkImportTransactionRow = {
-  /** ISO date string (YYYY-MM-DD). */
-  date: string;
-  /** Signed amount: positive = income, negative = expense. */
-  amount: number;
-  description: string;
-};
+/**
+ * Updates date, category, and/or amount on an existing cashflow transaction
+ * so imported rows can be corrected without deleting and re-entering them.
+ */
+export async function updateTransaction(
+  id: string,
+  data: UpdateTransactionData,
+): Promise<
+  { transaction: FinanceTransaction; error?: undefined } | { transaction: null; error: string }
+> {
+  const transactionId = id.trim();
+  if (!transactionId) {
+    return { transaction: null, error: "Transaction id is required." };
+  }
+
+  const patch: {
+    date?: string;
+    amount?: number;
+    category_id?: string | null;
+  } = {};
+
+  if (data.date !== undefined) {
+    if (!ISO_DATE_PATTERN.test(data.date)) {
+      return { transaction: null, error: "Date must be in YYYY-MM-DD format." };
+    }
+    patch.date = data.date;
+  }
+
+  if (data.amount !== undefined) {
+    if (!Number.isFinite(data.amount) || data.amount <= 0) {
+      return { transaction: null, error: "Amount must be a positive number." };
+    }
+    patch.amount = data.amount;
+  }
+
+  if (data.category_id !== undefined) {
+    const categoryId = parseCategoryId(data.category_id);
+    if (categoryId === undefined) {
+      return { transaction: null, error: "Category id must be a valid UUID." };
+    }
+    patch.category_id = categoryId;
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return { transaction: null, error: "No changes provided." };
+  }
+
+  const supabase = createServerSupabaseClient();
+  const userId = getPlaceholderUserId();
+
+  const { data: existing, error: existingError } = await supabase
+    .from("finance_transactions")
+    .select("id, type, category_id")
+    .eq("id", transactionId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (existingError) {
+    return { transaction: null, error: existingError.message };
+  }
+  if (!existing) {
+    return { transaction: null, error: "Transaction not found." };
+  }
+
+  if (patch.category_id !== undefined) {
+    if (existing.type === "transfer") {
+      return { transaction: null, error: "Transfers cannot have a category." };
+    }
+    if (!patch.category_id) {
+      return { transaction: null, error: "Category is required." };
+    }
+
+    const { data: category, error: categoryError } = await supabase
+      .from("finance_categories")
+      .select("id, kind")
+      .eq("id", patch.category_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (categoryError) {
+      return { transaction: null, error: categoryError.message };
+    }
+    if (!category) {
+      return { transaction: null, error: "Category not found." };
+    }
+    if (category.kind !== existing.type) {
+      return {
+        transaction: null,
+        error: `Category must be an ${existing.type} category.`,
+      };
+    }
+  }
+
+  const { data: transaction, error } = await supabase
+    .from("finance_transactions")
+    .update({
+      ...(patch.date !== undefined ? { date: patch.date } : {}),
+      ...(patch.amount !== undefined ? { amount: patch.amount } : {}),
+      ...(patch.category_id !== undefined ? { category_id: patch.category_id } : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", transactionId)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+
+  if (error || !transaction) {
+    return { transaction: null, error: error?.message ?? "Failed to update transaction" };
+  }
+
+  revalidatePath("/finance");
+  return { transaction };
+}
+
+/**
+ * Deletes a cashflow transaction owned by the current user.
+ */
+export async function deleteTransaction(
+  id: string,
+): Promise<{ success: true; error?: undefined } | { success: false; error: string }> {
+  const transactionId = id.trim();
+  if (!transactionId || !UUID_PATTERN.test(transactionId)) {
+    return { success: false, error: "Transaction id must be a valid UUID." };
+  }
+
+  const supabase = createServerSupabaseClient();
+  const userId = getPlaceholderUserId();
+
+  const { data: existing, error: existingError } = await supabase
+    .from("finance_transactions")
+    .select("id")
+    .eq("id", transactionId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (existingError) {
+    return { success: false, error: existingError.message };
+  }
+  if (!existing) {
+    return { success: false, error: "Transaction not found." };
+  }
+
+  const { error } = await supabase
+    .from("finance_transactions")
+    .delete()
+    .eq("id", transactionId)
+    .eq("user_id", userId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/finance");
+  return { success: true };
+}
 
 /**
  * Bulk-inserts cashflow transactions parsed from a bank statement CSV into a
@@ -462,11 +624,6 @@ export async function bulkInsertTransactions(
 // Investment portfolios, securities & trades
 // ---------------------------------------------------------------------------
 
-export type CreatePortfolioInput = {
-  name: string;
-  baseCurrency?: string;
-};
-
 /**
  * Creates a new investment portfolio for the current user.
  */
@@ -526,13 +683,6 @@ export async function getPortfolios(): Promise<FinancePortfolio[]> {
 
   return data ?? [];
 }
-
-export type CreateSecurityInput = {
-  symbol: string;
-  name: string;
-  securityType: FinanceSecurityType;
-  currency?: string;
-};
 
 /**
  * Inserts a user-scoped security into the catalog (e.g. a custom crypto or stock ticker).
@@ -620,19 +770,6 @@ async function findOrCreateSecurity(input: CreateSecurityInput): Promise<
     currency: input.currency,
   });
 }
-
-export type CreateInvestmentTransactionInput = {
-  portfolioId: string;
-  type: Extract<FinanceInvestmentTxType, "buy" | "sell">;
-  symbol: string;
-  name?: string;
-  securityType: FinanceSecurityType;
-  quantity: number;
-  price: number;
-  currency?: string;
-  tradeDate?: string;
-  notes?: string;
-};
 
 /**
  * Logs a buy/sell investment trade. Finds or creates the security by symbol,
@@ -788,19 +925,6 @@ export async function createInvestmentTransaction(
 // ---------------------------------------------------------------------------
 // Investment holdings
 // ---------------------------------------------------------------------------
-
-export type HoldingWithDetails = {
-  id: string;
-  portfolioId: string;
-  portfolioName: string;
-  securityId: string;
-  symbol: string;
-  name: string;
-  securityType: FinanceSecurityType;
-  quantity: number;
-  averageCost: number;
-  currency: string;
-};
 
 /**
  * Fetches every investment holding across the current user's portfolios,

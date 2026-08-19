@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import type { HoldingWithDetails } from "@/features/finance/actions";
+import type { HoldingWithDetails } from "@/features/finance/types";
 
 type PortfolioHoldingsSectionProps = {
   holdings: HoldingWithDetails[];
@@ -41,22 +41,37 @@ export function PortfolioHoldingsSection({
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-lg font-semibold text-zinc-50">Investment Portfolio</h2>
         {portfolioCount > 0 ? (
-          <div className="flex items-center gap-3">
-            <Link
-              href="/finance/portfolios/new"
-              className="shrink-0 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
-            >
-              Add Portfolio
-            </Link>
-            <Link
-              href="/finance/investments/new"
-              className="shrink-0 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
-            >
-              Log Trade
-            </Link>
-          </div>
+          <Link
+            href="/finance/portfolios/new"
+            className="shrink-0 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
+          >
+            Add Portfolio
+          </Link>
         ) : null}
       </div>
+
+      {portfolioCount > 0 ? (
+        <Link
+          href="/finance/investments/new"
+          className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-4 text-sm font-semibold text-zinc-100 transition-colors hover:bg-zinc-800"
+        >
+          <svg
+            aria-hidden="true"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.25}
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M3 17l6-6 4 4 8-8M14 7h7v7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Log Trade
+        </Link>
+      ) : null}
 
       {portfolioCount === 0 ? (
         <div className="mt-3 space-y-4">
@@ -71,17 +86,9 @@ export function PortfolioHoldingsSection({
           </Link>
         </div>
       ) : visibleHoldings.length === 0 ? (
-        <div className="mt-3 space-y-4">
-          <p className="text-sm leading-relaxed text-zinc-400">
-            No holdings yet. Log a buy to populate this portfolio.
-          </p>
-          <Link
-            href="/finance/investments/new"
-            className="inline-flex min-h-12 w-full items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900 px-4 text-sm font-semibold text-zinc-100 transition-colors hover:bg-zinc-800"
-          >
-            Log Trade
-          </Link>
-        </div>
+        <p className="mt-3 text-sm leading-relaxed text-zinc-400">
+          No holdings yet. Log a buy to populate this portfolio.
+        </p>
       ) : (
         <ul className="mt-4 divide-y divide-zinc-800">
           {visibleHoldings.map((holding) => (
