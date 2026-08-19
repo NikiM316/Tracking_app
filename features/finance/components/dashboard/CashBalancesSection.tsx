@@ -36,7 +36,7 @@ export function CashBalancesSection({ accounts }: CashBalancesSectionProps) {
   return (
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-lg font-semibold text-zinc-50">Net Worth / Cash Balances</h2>
+        <h2 className="text-lg font-semibold text-zinc-50">Cash Balances</h2>
         {accounts.length > 0 ? (
           <div className="flex items-center gap-3">
             <span className="text-xs text-zinc-500">

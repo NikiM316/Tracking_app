@@ -102,4 +102,10 @@ export type HoldingWithDetails = {
   quantity: number;
   averageCost: number;
   currency: string;
+  /** Live ETH/EUR spot price when this holding is Ethereum. */
+  livePriceEur: number | null;
+  totalInvested: number;
+  currentValue: number | null;
+  pnlAmount: number | null;
+  pnlPercentage: number | null;
 };

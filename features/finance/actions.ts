@@ -14,6 +14,10 @@ import type {
   RecentTransaction,
   UpdateTransactionData,
 } from "@/features/finance/types";
+import {
+  getLiveCryptoPrices as fetchLiveCryptoPrices,
+  isEthereumHolding,
+} from "@/features/finance/lib/crypto-prices";
 import { ISO_DATE_PATTERN, parseCategoryId, UUID_PATTERN } from "@/features/finance/utils";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type {
@@ -35,6 +39,13 @@ function getPlaceholderUserId(): string {
 function getTodayDateString(): string {
   const today = new Date();
   return today.toISOString().slice(0, 10);
+}
+
+/**
+ * Fetches the current Ethereum price in EUR from CoinGecko.
+ */
+export async function getLiveCryptoPrices() {
+  return fetchLiveCryptoPrices();
 }
 
 // ---------------------------------------------------------------------------
@@ -928,16 +939,16 @@ export async function createInvestmentTransaction(
 
 /**
  * Fetches every investment holding across the current user's portfolios,
- * enriched with portfolio and security details for display.
+ * enriched with portfolio and security details and a live ETH/EUR market value.
  */
 export async function getPortfolioHoldings(): Promise<HoldingWithDetails[]> {
   const supabase = createServerSupabaseClient();
   const userId = getPlaceholderUserId();
 
-  const { data: portfolios, error: portfoliosError } = await supabase
-    .from("finance_portfolios")
-    .select("id, name")
-    .eq("user_id", userId);
+  const [{ data: portfolios, error: portfoliosError }, prices] = await Promise.all([
+    supabase.from("finance_portfolios").select("id, name").eq("user_id", userId),
+    fetchLiveCryptoPrices(),
+  ]);
 
   if (portfoliosError) {
     throw new Error(`Failed to fetch portfolios: ${portfoliosError.message}`);
@@ -978,17 +989,34 @@ export async function getPortfolioHoldings(): Promise<HoldingWithDetails[]> {
 
   return holdings.map((holding) => {
     const security = securityById.get(holding.security_id);
+    const symbol = security?.symbol ?? "?";
+    const name = security?.name ?? "Unknown security";
+    const quantity = Number(holding.quantity);
+    const averageCost = Number(holding.average_cost);
+    const isEth = isEthereumHolding(symbol, name);
+    const livePriceEur = isEth ? prices.ethereumEur : null;
+    const totalInvested = quantity * averageCost;
+    const currentValue = livePriceEur != null ? quantity * livePriceEur : null;
+    const pnlAmount = currentValue != null ? currentValue - totalInvested : null;
+    const pnlPercentage =
+      pnlAmount != null && totalInvested > 0 ? (pnlAmount / totalInvested) * 100 : 0;
+
     return {
       id: holding.id,
       portfolioId: holding.portfolio_id,
       portfolioName: portfolioNameById.get(holding.portfolio_id) ?? "Unknown portfolio",
       securityId: holding.security_id,
-      symbol: security?.symbol ?? "?",
-      name: security?.name ?? "Unknown security",
+      symbol,
+      name,
       securityType: security?.security_type ?? "other",
-      quantity: Number(holding.quantity),
-      averageCost: Number(holding.average_cost),
+      quantity,
+      averageCost,
       currency: holding.currency,
+      livePriceEur,
+      totalInvested,
+      currentValue,
+      pnlAmount,
+      pnlPercentage: currentValue != null ? pnlPercentage : null,
     };
   });
 }

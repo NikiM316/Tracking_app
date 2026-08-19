@@ -7,27 +7,82 @@ type PortfolioHoldingsSectionProps = {
   portfolioCount: number;
 };
 
-const SECURITY_TYPE_LABELS: Record<HoldingWithDetails["securityType"], string> = {
-  stock: "Stock",
-  etf: "ETF",
-  mutual_fund: "Mutual Fund",
-  bond: "Bond",
-  crypto: "Crypto",
-  commodity: "Commodity",
-  real_estate: "Real Estate",
-  other: "Other",
-};
-
 function formatQuantity(quantity: number): string {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 8 }).format(quantity);
+  return new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 8,
+  }).format(quantity);
 }
 
-function formatCurrency(amount: number, currency: string): string {
+function formatEur(amount: number): string {
   try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: "EUR",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
   } catch {
-    return `${amount.toFixed(2)} ${currency}`;
+    return `€${amount.toFixed(2)}`;
   }
+}
+
+function formatSignedEur(amount: number): string {
+  const formatted = formatEur(Math.abs(amount));
+  if (amount > 0) {
+    return `+${formatted}`;
+  }
+  if (amount < 0) {
+    return `-${formatted}`;
+  }
+  return formatted;
+}
+
+function formatPercent(value: number): string {
+  const formatted = `${Math.abs(value).toFixed(2)}%`;
+  if (value > 0) {
+    return `+${formatted}`;
+  }
+  if (value < 0) {
+    return `-${formatted}`;
+  }
+  return formatted;
+}
+
+function pnlBadgeClass(amount: number | null): string {
+  if (amount == null || amount === 0) {
+    return "bg-zinc-800 text-zinc-300";
+  }
+  if (amount > 0) {
+    return "bg-emerald-500/10 text-emerald-400";
+  }
+  return "bg-rose-500/10 text-rose-400";
+}
+
+function PnlBadge({
+  amount,
+  percentage,
+}: {
+  amount: number | null;
+  percentage: number | null;
+}) {
+  if (amount == null || percentage == null) {
+    return (
+      <span className="inline-flex rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-zinc-400">
+        P/L unavailable
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums ${pnlBadgeClass(amount)}`}
+    >
+      <span>{formatSignedEur(amount)}</span>
+      <span aria-hidden="true">·</span>
+      <span>{formatPercent(percentage)}</span>
+    </span>
+  );
 }
 
 export function PortfolioHoldingsSection({
@@ -35,6 +90,19 @@ export function PortfolioHoldingsSection({
   portfolioCount,
 }: PortfolioHoldingsSectionProps) {
   const visibleHoldings = holdings.filter((holding) => holding.quantity > 0);
+  const totalAssetValue = visibleHoldings.reduce(
+    (sum, holding) => sum + (holding.currentValue ?? 0),
+    0,
+  );
+  const totalInvested = visibleHoldings.reduce((sum, holding) => sum + holding.totalInvested, 0);
+  const hasLiveValues = visibleHoldings.some((holding) => holding.currentValue != null);
+  const overallPnlAmount = hasLiveValues ? totalAssetValue - totalInvested : null;
+  const overallPnlPercentage =
+    overallPnlAmount != null && totalInvested > 0
+      ? (overallPnlAmount / totalInvested) * 100
+      : overallPnlAmount != null
+        ? 0
+        : null;
 
   return (
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
@@ -49,6 +117,26 @@ export function PortfolioHoldingsSection({
           </Link>
         ) : null}
       </div>
+
+      {visibleHoldings.length > 0 ? (
+        <div className="mt-3 space-y-3">
+          <div>
+            <p className="text-xs text-zinc-500">Total asset value</p>
+            <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums text-zinc-50">
+              {hasLiveValues ? formatEur(totalAssetValue) : "—"}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <p className="text-sm text-zinc-400">
+              Invested{" "}
+              <span className="font-semibold tabular-nums text-zinc-200">
+                {formatEur(totalInvested)}
+              </span>
+            </p>
+            <PnlBadge amount={overallPnlAmount} percentage={overallPnlPercentage} />
+          </div>
+        </div>
+      ) : null}
 
       {portfolioCount > 0 ? (
         <Link
@@ -92,23 +180,32 @@ export function PortfolioHoldingsSection({
       ) : (
         <ul className="mt-4 divide-y divide-zinc-800">
           {visibleHoldings.map((holding) => (
-            <li key={holding.id} className="flex items-center justify-between py-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-zinc-100">
-                  {holding.symbol}
-                  <span className="ml-2 text-xs font-normal text-zinc-500">{holding.name}</span>
-                </p>
-                <p className="text-xs text-zinc-500">
-                  {SECURITY_TYPE_LABELS[holding.securityType]} · {holding.portfolioName}
-                </p>
-              </div>
-              <div className="shrink-0 pl-3 text-right">
-                <p className="text-sm font-semibold tabular-nums text-zinc-100">
-                  {formatQuantity(holding.quantity)}
-                </p>
-                <p className="text-xs text-zinc-500">
-                  avg {formatCurrency(holding.averageCost, holding.currency)}
-                </p>
+            <li key={holding.id} className="py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-zinc-100">
+                    {holding.symbol}
+                    <span className="font-normal text-zinc-500"> · {holding.portfolioName}</span>
+                  </p>
+                  <p className="mt-1 text-xs tabular-nums text-zinc-400">
+                    {formatQuantity(holding.quantity)} {holding.symbol}
+                    {holding.livePriceEur != null
+                      ? ` @ ${formatEur(holding.livePriceEur)}`
+                      : ""}
+                  </p>
+                  <p className="mt-1 text-xs tabular-nums text-zinc-500">
+                    Invested: {formatEur(holding.totalInvested)} @{" "}
+                    {formatEur(holding.averageCost)}/unit
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-sm font-semibold tabular-nums text-zinc-50">
+                    {holding.currentValue != null ? formatEur(holding.currentValue) : "—"}
+                  </p>
+                  <div className="mt-2">
+                    <PnlBadge amount={holding.pnlAmount} percentage={holding.pnlPercentage} />
+                  </div>
+                </div>
               </div>
             </li>
           ))}
