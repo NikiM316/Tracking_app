@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/features/core/components/Button";
 import { deleteTransaction, updateTransaction } from "@/features/finance/actions";
+import { DateField } from "@/features/finance/components/forms/DateField";
 import type { RecentTransaction } from "@/features/finance/types";
 import type { FinanceCategory } from "@/lib/supabase/finance-types";
 
@@ -179,17 +180,15 @@ export function EditTransactionModal({
             />
           </div>
 
-          <div className="min-w-0 space-y-1.5">
+          <div className="space-y-1.5">
             <label className={labelClassName} htmlFor="edit-tx-date">
               Date
             </label>
-            <input
+            <DateField
               id="edit-tx-date"
               required
-              type="date"
-              className={fieldClassName}
               value={date}
-              onChange={(event) => setDate(event.target.value)}
+              onChange={setDate}
             />
           </div>
 

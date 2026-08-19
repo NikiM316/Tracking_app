@@ -6,6 +6,7 @@ import { useMemo, useState, useTransition } from "react";
 import { Button } from "@/features/core/components/Button";
 import { SegmentedControl } from "@/features/core/components/SegmentedControl";
 import { createTransaction } from "@/features/finance/actions";
+import { DateField } from "@/features/finance/components/forms/DateField";
 import type { AccountWithBalance } from "@/features/finance/types";
 import type {
   FinanceCategory,
@@ -235,17 +236,15 @@ export function NewTransactionForm({ accounts, categories }: NewTransactionFormP
         </div>
       )}
 
-      <div className="min-w-0 space-y-1.5">
+      <div className="space-y-1.5">
         <label className={labelClassName} htmlFor="tx-date">
           Date
         </label>
-        <input
+        <DateField
           id="tx-date"
           required
-          type="date"
-          className={fieldClassName}
           value={date}
-          onChange={(event) => setDate(event.target.value)}
+          onChange={setDate}
         />
       </div>
 
