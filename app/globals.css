@@ -28,3 +28,31 @@ textarea,
 select {
   font-size: 16px;
 }
+
+/* Native date pickers on iOS/Safari ignore width unless the inner
+   datetime-edit/calendar controls are allowed to shrink. */
+input[type="date"] {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+input[type="date"]::-webkit-datetime-edit {
+  min-width: 0;
+  padding: 0;
+  flex: 1 1 auto;
+}
+
+input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.5em;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  margin: 0;
+  flex-shrink: 0;
+}

@@ -18,7 +18,7 @@ type NewTransactionFormProps = {
 };
 
 const fieldClassName =
-  "min-h-12 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-base text-zinc-50 outline-none focus:border-emerald-500";
+  "min-h-12 w-full min-w-0 max-w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-base text-zinc-50 outline-none focus:border-emerald-500";
 
 const labelClassName = "text-xs font-medium uppercase tracking-wide text-zinc-500";
 
@@ -235,7 +235,7 @@ export function NewTransactionForm({ accounts, categories }: NewTransactionFormP
         </div>
       )}
 
-      <div className="space-y-1.5">
+      <div className="min-w-0 space-y-1.5">
         <label className={labelClassName} htmlFor="tx-date">
           Date
         </label>
