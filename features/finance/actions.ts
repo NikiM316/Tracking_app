@@ -18,7 +18,12 @@ import {
   getLiveCryptoPrices as fetchLiveCryptoPrices,
   isEthereumHolding,
 } from "@/features/finance/lib/crypto-prices";
-import { ISO_DATE_PATTERN, parseCategoryId, UUID_PATTERN } from "@/features/finance/utils";
+import {
+  ISO_DATE_PATTERN,
+  parseCategoryId,
+  toFiniteNumber,
+  UUID_PATTERN,
+} from "@/features/finance/utils";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type {
   FinanceAccount,
@@ -129,7 +134,7 @@ export async function createAccount(
     return { account: null, error: "Currency must be a 3-letter ISO code (e.g. EUR)." };
   }
 
-  const openingBalance = input.openingBalance ?? 0;
+  const openingBalance = toFiniteNumber(input.openingBalance ?? 0);
   if (!Number.isFinite(openingBalance)) {
     return { account: null, error: "Opening balance must be a number." };
   }
@@ -325,7 +330,8 @@ export async function createTransaction(
 ): Promise<
   { transaction: FinanceTransaction; error?: undefined } | { transaction: null; error: string }
 > {
-  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+  const amount = toFiniteNumber(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
     return { transaction: null, error: "Amount must be a positive number." };
   }
 
@@ -356,7 +362,7 @@ export async function createTransaction(
             user_id: userId,
             account_id: input.accountId,
             type: input.type,
-            amount: input.amount,
+            amount,
             currency: input.currency,
             date,
             transfer_account_id: input.transferAccountId,
@@ -370,7 +376,7 @@ export async function createTransaction(
             user_id: userId,
             account_id: input.accountId,
             type: input.type,
-            amount: input.amount,
+            amount,
             currency: input.currency,
             date,
             category_id: categoryId,
@@ -417,10 +423,11 @@ export async function updateTransaction(
   }
 
   if (data.amount !== undefined) {
-    if (!Number.isFinite(data.amount) || data.amount <= 0) {
+    const amount = toFiniteNumber(data.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
       return { transaction: null, error: "Amount must be a positive number." };
     }
-    patch.amount = data.amount;
+    patch.amount = amount;
   }
 
   if (data.category_id !== undefined) {
@@ -799,10 +806,12 @@ export async function createInvestmentTransaction(
   if (input.type !== "buy" && input.type !== "sell") {
     return { transaction: null, error: "Trade type must be buy or sell." };
   }
-  if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
+  const quantity = toFiniteNumber(input.quantity);
+  const price = toFiniteNumber(input.price);
+  if (!Number.isFinite(quantity) || quantity <= 0) {
     return { transaction: null, error: "Quantity must be a positive number." };
   }
-  if (!Number.isFinite(input.price) || input.price < 0) {
+  if (!Number.isFinite(price) || price < 0) {
     return { transaction: null, error: "Price must be zero or greater." };
   }
 
@@ -840,7 +849,7 @@ export async function createInvestmentTransaction(
   }
 
   const security = securityResult.security;
-  const amount = Number((input.quantity * input.price).toFixed(2));
+  const amount = Number((quantity * price).toFixed(2));
   const tradeDate = input.tradeDate ?? getTodayDateString();
 
   const { data: existingHolding, error: holdingLookupError } = await supabase
@@ -857,10 +866,10 @@ export async function createInvestmentTransaction(
   const previousQuantity = Number(existingHolding?.quantity ?? 0);
   const previousAverageCost = Number(existingHolding?.average_cost ?? 0);
 
-  if (input.type === "sell" && input.quantity > previousQuantity) {
+  if (input.type === "sell" && quantity > previousQuantity) {
     return {
       transaction: null,
-      error: `Cannot sell ${input.quantity}; only ${previousQuantity} available.`,
+      error: `Cannot sell ${quantity}; only ${previousQuantity} available.`,
     };
   }
 
@@ -872,8 +881,8 @@ export async function createInvestmentTransaction(
       security_id: security.id,
       type: input.type,
       trade_date: tradeDate,
-      quantity: input.quantity,
-      price: input.price,
+      quantity,
+      price,
       amount,
       currency,
       notes: input.notes ?? null,
@@ -892,13 +901,13 @@ export async function createInvestmentTransaction(
   let nextAverageCost: number;
 
   if (input.type === "buy") {
-    nextQuantity = previousQuantity + input.quantity;
+    nextQuantity = previousQuantity + quantity;
     nextAverageCost =
       nextQuantity === 0
         ? 0
-        : (previousQuantity * previousAverageCost + input.quantity * input.price) / nextQuantity;
+        : (previousQuantity * previousAverageCost + quantity * price) / nextQuantity;
   } else {
-    nextQuantity = previousQuantity - input.quantity;
+    nextQuantity = previousQuantity - quantity;
     nextAverageCost = nextQuantity === 0 ? 0 : previousAverageCost;
   }
 

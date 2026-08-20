@@ -6,6 +6,8 @@ import { useState, useTransition } from "react";
 import { Button } from "@/features/core/components/Button";
 import { SegmentedControl } from "@/features/core/components/SegmentedControl";
 import { createInvestmentTransaction } from "@/features/finance/actions";
+import { DecimalField } from "@/features/finance/components/forms/DecimalField";
+import { parseDecimal } from "@/features/finance/utils";
 import type {
   FinanceInvestmentTxType,
   FinancePortfolio,
@@ -49,8 +51,8 @@ export function NewInvestmentTradeForm({ portfolios }: NewInvestmentTradeFormPro
     event.preventDefault();
     setError(null);
 
-    const parsedQuantity = Number(quantity);
-    const parsedPrice = Number(price);
+    const parsedQuantity = parseDecimal(quantity);
+    const parsedPrice = parseDecimal(price);
 
     if (!portfolioId) {
       setError("Select a portfolio.");
@@ -182,17 +184,13 @@ export function NewInvestmentTradeForm({ portfolios }: NewInvestmentTradeFormPro
         <label className={labelClassName} htmlFor="trade-quantity">
           Quantity
         </label>
-        <input
+        <DecimalField
           id="trade-quantity"
           required
-          type="number"
-          inputMode="decimal"
-          min="0"
-          step="any"
           className={fieldClassName}
           placeholder="0"
           value={quantity}
-          onChange={(event) => setQuantity(event.target.value)}
+          onChange={setQuantity}
         />
       </div>
 
@@ -200,17 +198,13 @@ export function NewInvestmentTradeForm({ portfolios }: NewInvestmentTradeFormPro
         <label className={labelClassName} htmlFor="trade-price">
           Price per unit
         </label>
-        <input
+        <DecimalField
           id="trade-price"
           required
-          type="number"
-          inputMode="decimal"
-          min="0"
-          step="any"
           className={fieldClassName}
           placeholder="0.00"
           value={price}
-          onChange={(event) => setPrice(event.target.value)}
+          onChange={setPrice}
         />
       </div>
 

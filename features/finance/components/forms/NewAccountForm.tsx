@@ -5,6 +5,8 @@ import { useState, useTransition } from "react";
 
 import { Button } from "@/features/core/components/Button";
 import { createAccount } from "@/features/finance/actions";
+import { DecimalField } from "@/features/finance/components/forms/DecimalField";
+import { parseDecimal } from "@/features/finance/utils";
 import type { FinanceAccountType } from "@/lib/supabase/finance-types";
 
 const ACCOUNT_TYPES: { value: FinanceAccountType; label: string }[] = [
@@ -35,7 +37,7 @@ export function NewAccountForm() {
     event.preventDefault();
     setError(null);
 
-    const parsedBalance = Number(openingBalance);
+    const parsedBalance = parseDecimal(openingBalance);
     if (!Number.isFinite(parsedBalance)) {
       setError("Opening balance must be a number.");
       return;
@@ -113,15 +115,13 @@ export function NewAccountForm() {
         <label className={labelClassName} htmlFor="opening-balance">
           Opening Balance
         </label>
-        <input
+        <DecimalField
           id="opening-balance"
           required
-          type="number"
-          inputMode="decimal"
-          step="0.01"
           className={fieldClassName}
+          placeholder="0.00"
           value={openingBalance}
-          onChange={(event) => setOpeningBalance(event.target.value)}
+          onChange={setOpeningBalance}
         />
       </div>
 

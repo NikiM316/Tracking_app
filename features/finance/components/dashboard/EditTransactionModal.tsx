@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/features/core/components/Button";
 import { deleteTransaction, updateTransaction } from "@/features/finance/actions";
 import { DateField } from "@/features/finance/components/forms/DateField";
+import { DecimalField } from "@/features/finance/components/forms/DecimalField";
+import { parseDecimal } from "@/features/finance/utils";
 import type { RecentTransaction } from "@/features/finance/types";
 import type { FinanceCategory } from "@/lib/supabase/finance-types";
 
@@ -71,7 +73,7 @@ export function EditTransactionModal({
     event.preventDefault();
     setError(null);
 
-    const parsedAmount = Number(amount);
+    const parsedAmount = parseDecimal(amount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       setError("Amount must be a positive number.");
       return;
@@ -167,16 +169,13 @@ export function EditTransactionModal({
             <label className={labelClassName} htmlFor="edit-tx-amount">
               Amount ({transaction.currency})
             </label>
-            <input
+            <DecimalField
               id="edit-tx-amount"
               required
-              type="number"
-              inputMode="decimal"
-              min="0.01"
-              step="0.01"
               className={fieldClassName}
+              placeholder="0.00"
               value={amount}
-              onChange={(event) => setAmount(event.target.value)}
+              onChange={setAmount}
             />
           </div>
 
