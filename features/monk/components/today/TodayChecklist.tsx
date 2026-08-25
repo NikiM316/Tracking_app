@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/features/core/components/Button";
 import { NumberInput } from "@/features/core/components/NumberInput";
 import {
-  addStudyItemAsTask,
   addTask,
   deleteTask,
   finalizeToday,
@@ -16,9 +15,11 @@ import {
   toggleHabitLog,
   updateTask,
 } from "@/features/monk/actions/today";
+import { StudyItemAddModal } from "@/features/monk/components/today/StudyItemAddModal";
 import { scoreDay } from "@/features/monk/lib/accountability";
 import { formatHabitTarget } from "@/features/monk/lib/format";
 import type { ActionResult, TodayPageData } from "@/features/monk/types";
+import type { StudyPlanItem } from "@/lib/supabase/monk-types";
 
 type ChecklistProps = Extract<TodayPageData, { mode: "today" }>;
 
@@ -68,6 +69,9 @@ export function TodayChecklist(data: ChecklistProps) {
   const [editingTitle, setEditingTitle] = useState("");
   const [confirmFinalize, setConfirmFinalize] = useState(false);
   const [socialMediaDraft, setSocialMediaDraft] = useState<SocialMediaDraft | null>(
+    null,
+  );
+  const [selectedStudyItem, setSelectedStudyItem] = useState<StudyPlanItem | null>(
     null,
   );
 
@@ -500,9 +504,7 @@ export function TodayChecklist(data: ChecklistProps) {
                         variant="secondary"
                         className="min-h-10 shrink-0 px-3 text-xs"
                         disabled={isPending}
-                        onClick={() =>
-                          act(() => addStudyItemAsTask(data.day.id, item.id, false))
-                        }
+                        onClick={() => setSelectedStudyItem(item)}
                       >
                         Add
                       </Button>
@@ -516,6 +518,18 @@ export function TodayChecklist(data: ChecklistProps) {
       ) : null}
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
+
+      {selectedStudyItem ? (
+        <StudyItemAddModal
+          dayId={data.day.id}
+          item={selectedStudyItem}
+          onClose={() => setSelectedStudyItem(null)}
+          onAdded={(result) => {
+            setSelectedStudyItem(null);
+            runResult(result, setError, refresh);
+          }}
+        />
+      ) : null}
 
       {locked ? (
         <p className="text-center text-xs text-zinc-500">

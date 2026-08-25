@@ -80,7 +80,6 @@ async function buildStudyWeekPanel(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   userId: string,
   today: string,
-  tasks: { study_item_id: string | null }[],
 ): Promise<StudyWeekPanel | null> {
   const plan = await getActiveStudyPlan(supabase, userId);
   if (!plan) {
@@ -130,11 +129,6 @@ async function buildStudyWeekPanel(
   const week =
     weeks.find((candidate) => candidate.week_number === weekNumber) ?? weeks[0];
   const items = await listStudyItems(supabase, week.id);
-  const addedIds = new Set(
-    tasks
-      .map((task) => task.study_item_id)
-      .filter((id): id is string => Boolean(id)),
-  );
 
   return {
     planId: plan.id,
@@ -144,7 +138,7 @@ async function buildStudyWeekPanel(
     title: week.title,
     focus: week.focus,
     buildTarget: week.build_target,
-    items: items.filter((item) => !addedIds.has(item.id)),
+    items,
     completed: false,
   };
 }
@@ -226,7 +220,7 @@ export async function getTodayPageData(): Promise<TodayPageData> {
       todayDayNumber: day.day_number,
       previousBest: previousBestStreak(attempts),
     }),
-    studyWeek: await buildStudyWeekPanel(supabase, userId, today, tasks),
+    studyWeek: await buildStudyWeekPanel(supabase, userId, today),
   };
 }
 
@@ -510,12 +504,18 @@ export async function setSocialMediaLimit(
   return { ok: true };
 }
 
-export async function addStudyItemAsTask(
-  dayId: string,
-  studyItemId: string,
-  isMandatory: boolean,
-): Promise<ActionResult> {
-  const unlocked = await loadUnlockedDay(dayId);
+export async function addStudyItemAsTask(input: {
+  dayId: string;
+  studyItemId: string;
+  isMandatory: boolean;
+  todayTarget: string;
+}): Promise<ActionResult> {
+  const todayTarget = input.todayTarget.trim();
+  if (!todayTarget) {
+    return { error: "Set today's target before adding." };
+  }
+
+  const unlocked = await loadUnlockedDay(input.dayId);
   if ("error" in unlocked) {
     return unlocked;
   }
@@ -523,23 +523,18 @@ export async function addStudyItemAsTask(
   const { data: item, error: itemError } = await unlocked.supabase
     .from("study_plan_items")
     .select("*")
-    .eq("id", studyItemId)
+    .eq("id", input.studyItemId)
     .single();
 
   if (itemError || !item) {
     return { error: itemError?.message ?? "Study item not found." };
   }
 
-  const tasks = await listTasks(unlocked.supabase, dayId);
-  if (tasks.some((task) => task.study_item_id === studyItemId)) {
-    return { error: "That study item is already on today's list." };
-  }
-
   return addTask({
-    dayId,
-    title: item.title,
-    isMandatory,
-    studyItemId,
+    dayId: input.dayId,
+    title: `${item.title}: ${todayTarget}`,
+    isMandatory: input.isMandatory,
+    studyItemId: input.studyItemId,
   });
 }
 
