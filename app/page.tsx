@@ -50,6 +50,20 @@ export default function Home() {
               Track cashflow, balances, and investments
             </span>
           </Link>
+          <Link
+            className="flex min-h-28 flex-col justify-center rounded-2xl border border-zinc-800 bg-zinc-900/60 p-6 transition-colors hover:border-emerald-500/40 hover:bg-zinc-900"
+            href="/monk"
+          >
+            <span className="text-xs font-semibold uppercase tracking-widest text-emerald-400">
+              Discipline
+            </span>
+            <span className="mt-2 text-2xl font-bold tracking-tight text-zinc-50">
+              Monk Mode
+            </span>
+            <span className="mt-1 text-sm text-zinc-400">
+              180-day protocol, binary days, no quiet edits
+            </span>
+          </Link>
         </div>
       </div>
     </main>

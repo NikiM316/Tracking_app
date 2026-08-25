@@ -1,6 +1,8 @@
 import type { FinanceEnums, FinanceTables } from "./finance-types";
+import type { MonkEnums, MonkTables } from "./monk-types";
 
 export * from "./finance-types";
+export * from "./monk-types";
 
 export type ExerciseCategory = "barbell" | "calisthenics" | "cardio" | "mobility";
 
@@ -52,7 +54,7 @@ export type ExerciseNote = {
 
 export type Database = {
   public: {
-    Tables: FinanceTables & {
+    Tables: FinanceTables & MonkTables & {
       exercises: {
         Row: Exercise;
         Insert: Omit<Exercise, "id" | "created_at"> & {
@@ -103,7 +105,7 @@ export type Database = {
         Returns: number;
       };
     };
-    Enums: FinanceEnums & {
+    Enums: FinanceEnums & MonkEnums & {
       exercise_category: ExerciseCategory;
       set_category: SetCategory;
     };
