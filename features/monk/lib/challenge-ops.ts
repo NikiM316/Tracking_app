@@ -557,10 +557,41 @@ export async function listStudyWeeks(
     .order("week_number", { ascending: true });
 
   if (error) {
-    throw new Error(`Failed to load study weeks: ${error.message}`);
+    throw new Error(`Failed to load study modules: ${error.message}`);
   }
 
   return data ?? [];
+}
+
+export async function completeStudyWeek(
+  supabase: SupabaseClient,
+  userId: string,
+  weekId: string,
+): Promise<void> {
+  const plan = await getActiveStudyPlan(supabase, userId);
+  if (!plan) {
+    throw new Error("No active study plan.");
+  }
+
+  const weeks = await listStudyWeeks(supabase, plan.id);
+  const current = weeks.find((week) => !week.is_completed);
+  if (!current) {
+    throw new Error("All modules are already complete.");
+  }
+  if (current.id !== weekId) {
+    throw new Error("This is not the current module.");
+  }
+
+  const { error } = await supabase
+    .from("study_plan_weeks")
+    .update({ is_completed: true })
+    .eq("id", weekId)
+    .eq("plan_id", plan.id)
+    .eq("is_completed", false);
+
+  if (error) {
+    throw new Error(`Failed to complete module: ${error.message}`);
+  }
 }
 
 export async function listStudyItems(
@@ -580,24 +611,45 @@ export async function listStudyItems(
   return data ?? [];
 }
 
-export async function markStudyPlanStarted(
+export async function toggleStudyItem(
   supabase: SupabaseClient,
   userId: string,
-  startsOn: string,
+  itemId: string,
+  completed: boolean,
 ): Promise<void> {
   const plan = await getActiveStudyPlan(supabase, userId);
-  if (!plan || plan.starts_on) {
-    return;
+  if (!plan) {
+    throw new Error("No active study plan.");
+  }
+
+  const { data: item, error: itemError } = await supabase
+    .from("study_plan_items")
+    .select("*")
+    .eq("id", itemId)
+    .single();
+
+  if (itemError || !item) {
+    throw new Error(itemError?.message ?? "Study item not found.");
+  }
+
+  const { data: week, error: weekError } = await supabase
+    .from("study_plan_weeks")
+    .select("id")
+    .eq("id", item.week_id)
+    .eq("plan_id", plan.id)
+    .maybeSingle();
+
+  if (weekError || !week) {
+    throw new Error(weekError?.message ?? "Study item is not on the active plan.");
   }
 
   const { error } = await supabase
-    .from("study_plans")
-    .update({ starts_on: startsOn })
-    .eq("id", plan.id)
-    .is("starts_on", null);
+    .from("study_plan_items")
+    .update({ is_completed: completed })
+    .eq("id", itemId);
 
   if (error) {
-    throw new Error(`Failed to start study plan: ${error.message}`);
+    throw new Error(`Failed to update study item: ${error.message}`);
   }
 }
 

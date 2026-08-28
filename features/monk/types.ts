@@ -19,6 +19,7 @@ export type HabitDraft = {
 export type StudyWeekPanel = {
   planId: string;
   planTitle: string;
+  weekId: string;
   weekNumber: number;
   totalWeeks: number;
   title: string;

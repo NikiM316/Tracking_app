@@ -14,7 +14,6 @@ import {
   listChallenges,
   listDaysForChallenge,
   listHabits,
-  markStudyPlanStarted,
   prepareActiveChallenge,
   revalidateMonkPaths,
 } from "@/features/monk/lib/challenge-ops";
@@ -231,7 +230,6 @@ export async function startChallenge(
     return { error: challengeError.message };
   }
 
-  await markStudyPlanStarted(supabase, userId, today);
   touchMonkPaths();
   return { ok: true };
 }
