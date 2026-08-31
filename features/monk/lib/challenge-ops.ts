@@ -13,6 +13,7 @@ import type {
 } from "@/lib/supabase/monk-types";
 import { PLACEHOLDER_USER_ID } from "@/lib/utils/placeholder-user";
 import {
+  DEFAULT_GAMING_LIMIT_MINUTES,
   finalizationSourceForMissingDay,
   isDayLocked,
   scoreDay,
@@ -321,6 +322,7 @@ export async function getOrCreateDayWithHabits(
       date: params.date,
       day_number: params.dayNumber,
       social_media_limit_minutes: params.challenge.social_media_limit_minutes,
+      gaming_limit_minutes: DEFAULT_GAMING_LIMIT_MINUTES,
     })
     .select("*")
     .single();
@@ -368,12 +370,20 @@ export async function syncNewHabitsToUnlockedDay(
   );
 }
 
+export type DayReflection = {
+  accomplished: string | null;
+  failed_to_do: string | null;
+  why_failed: string | null;
+  improve_tomorrow: string | null;
+};
+
 export async function finalizeDayAndMaybeReset(
   supabase: SupabaseClient,
   params: {
     day: MonkDay;
     challenge: MonkChallenge;
     source: MonkFinalizationSource;
+    reflection?: DayReflection;
   },
 ): Promise<{ day: MonkDay; challenge: MonkChallenge; passed: boolean }> {
   if (isDayLocked(params.day)) {
@@ -394,6 +404,8 @@ export async function finalizeDayAndMaybeReset(
     tasks,
     socialMediaLimitMinutes: params.day.social_media_limit_minutes,
     socialMediaActualMinutes: params.day.social_media_actual_minutes,
+    gamingLimitMinutes: params.day.gaming_limit_minutes,
+    gamingActualMinutes: params.day.gaming_actual_minutes,
     maxMandatoryFailuresAllowed: params.challenge.max_mandatory_failures_allowed,
   });
 
@@ -406,6 +418,7 @@ export async function finalizeDayAndMaybeReset(
       status: nextStatus,
       finalized_at: now,
       finalization_source: params.source,
+      ...(params.reflection ?? {}),
     })
     .eq("id", params.day.id)
     .eq("status", "in_progress")

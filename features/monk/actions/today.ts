@@ -186,6 +186,8 @@ export async function getTodayPageData(): Promise<TodayPageData> {
     tasks,
     socialMediaLimitMinutes: day.social_media_limit_minutes,
     socialMediaActualMinutes: day.social_media_actual_minutes,
+    gamingLimitMinutes: day.gaming_limit_minutes,
+    gamingActualMinutes: day.gaming_actual_minutes,
     maxMandatoryFailuresAllowed: active.max_mandatory_failures_allowed,
   });
 
@@ -488,6 +490,68 @@ export async function setSocialMediaLimit(
   return { ok: true };
 }
 
+function validateMinutes(minutes: number | null, label: string): ActionResult | null {
+  if (minutes !== null && (minutes < 0 || !Number.isFinite(minutes))) {
+    return { error: `${label} must be zero or more.` };
+  }
+  return null;
+}
+
+export async function setGamingMinutes(
+  dayId: string,
+  minutes: number | null,
+): Promise<ActionResult> {
+  const invalid = validateMinutes(minutes, "Minutes");
+  if (invalid) {
+    return invalid;
+  }
+
+  const unlocked = await loadUnlockedDay(dayId);
+  if ("error" in unlocked) {
+    return unlocked;
+  }
+
+  const rounded = minutes === null ? null : Math.round(minutes);
+  const { error } = await unlocked.supabase
+    .from("monk_days")
+    .update({ gaming_actual_minutes: rounded })
+    .eq("id", dayId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  touchMonkPaths();
+  return { ok: true };
+}
+
+export async function setGamingLimit(
+  dayId: string,
+  minutes: number,
+): Promise<ActionResult> {
+  const invalid = validateMinutes(minutes, "Limit");
+  if (invalid) {
+    return invalid;
+  }
+
+  const unlocked = await loadUnlockedDay(dayId);
+  if ("error" in unlocked) {
+    return unlocked;
+  }
+
+  const { error } = await unlocked.supabase
+    .from("monk_days")
+    .update({ gaming_limit_minutes: Math.round(minutes) })
+    .eq("id", dayId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  touchMonkPaths();
+  return { ok: true };
+}
+
 export async function addStudyItemAsTask(input: {
   dayId: string;
   studyItemId: string;
@@ -563,7 +627,25 @@ export async function completeStudyModule(weekId: string): Promise<ActionResult>
   return { ok: true };
 }
 
-export async function finalizeToday(dayId: string): Promise<ActionResult> {
+function optionalText(value: string | null | undefined): string | null {
+  if (value == null) {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed;
+}
+
+export type DayReflectionInput = {
+  accomplished?: string | null;
+  failedToDo?: string | null;
+  whyFailed?: string | null;
+  improveTomorrow?: string | null;
+};
+
+export async function finalizeToday(
+  dayId: string,
+  reflection?: DayReflectionInput,
+): Promise<ActionResult> {
   const supabase = createServerSupabaseClient();
   const { data: day, error } = await supabase
     .from("monk_days")
@@ -594,6 +676,12 @@ export async function finalizeToday(dayId: string): Promise<ActionResult> {
       day,
       challenge,
       source: "manual",
+      reflection: {
+        accomplished: optionalText(reflection?.accomplished),
+        failed_to_do: optionalText(reflection?.failedToDo),
+        why_failed: optionalText(reflection?.whyFailed),
+        improve_tomorrow: optionalText(reflection?.improveTomorrow),
+      },
     });
   } catch (finalizeError) {
     return {
