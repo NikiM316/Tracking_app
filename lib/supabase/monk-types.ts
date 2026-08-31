@@ -175,6 +175,7 @@ export type StudyPlanWeek = {
   title: string;
   focus: string | null;
   build_target: string | null;
+  is_completed: boolean;
   created_at: string;
 };
 
@@ -185,6 +186,7 @@ export type StudyPlanItem = {
   title: string;
   url: string | null;
   is_primary: boolean;
+  is_completed: boolean;
   sort_order: number;
   created_at: string;
 };
@@ -420,20 +422,28 @@ export type MonkTables = {
   >;
   study_plan_weeks: TableDef<
     StudyPlanWeek,
-    Omit<StudyPlanWeek, "id" | "focus" | "build_target" | "created_at"> & {
+    Omit<
+      StudyPlanWeek,
+      "id" | "focus" | "build_target" | "is_completed" | "created_at"
+    > & {
       id?: string;
       focus?: string | null;
       build_target?: string | null;
+      is_completed?: boolean;
       created_at?: string;
     },
     Partial<Omit<StudyPlanWeek, "id">>
   >;
   study_plan_items: TableDef<
     StudyPlanItem,
-    Omit<StudyPlanItem, "id" | "url" | "is_primary" | "sort_order" | "created_at"> & {
+    Omit<
+      StudyPlanItem,
+      "id" | "url" | "is_primary" | "is_completed" | "sort_order" | "created_at"
+    > & {
       id?: string;
       url?: string | null;
       is_primary?: boolean;
+      is_completed?: boolean;
       sort_order?: number;
       created_at?: string;
     },

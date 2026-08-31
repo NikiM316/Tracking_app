@@ -10,6 +10,7 @@ import {
   scoreDay,
 } from "@/features/monk/lib/accountability";
 import {
+  completeStudyWeek,
   ensureSettings,
   ensureTodayDay,
   finalizeDayAndMaybeReset,
@@ -25,8 +26,9 @@ import {
   lockedError,
   prepareActiveChallenge,
   revalidateMonkPaths,
+  toggleStudyItem,
 } from "@/features/monk/lib/challenge-ops";
-import { daysBetween, getTodayInTimezone } from "@/features/monk/lib/dates";
+import { getTodayInTimezone } from "@/features/monk/lib/dates";
 import type {
   ActionResult,
   ClosedChallengeSummary,
@@ -79,7 +81,6 @@ function closedSummary(
 async function buildStudyWeekPanel(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   userId: string,
-  today: string,
 ): Promise<StudyWeekPanel | null> {
   const plan = await getActiveStudyPlan(supabase, userId);
   if (!plan) {
@@ -91,31 +92,16 @@ async function buildStudyWeekPanel(
     return null;
   }
 
+  const current = weeks.find((week) => !week.is_completed);
   const totalWeeks = weeks.length;
 
-  if (!plan.starts_on) {
-    const firstWeek = weeks[0];
-    const items = await listStudyItems(supabase, firstWeek.id);
-    return {
-      planId: plan.id,
-      planTitle: plan.title,
-      weekNumber: 1,
-      totalWeeks,
-      title: firstWeek.title,
-      focus: firstWeek.focus,
-      buildTarget: firstWeek.build_target,
-      items,
-      completed: false,
-    };
-  }
-
-  const elapsedWeeks = Math.floor(daysBetween(plan.starts_on, today) / 7) + 1;
-  if (elapsedWeeks > totalWeeks) {
+  if (!current) {
     const lastWeek = weeks[weeks.length - 1];
     return {
       planId: plan.id,
       planTitle: plan.title,
-      weekNumber: totalWeeks,
+      weekId: lastWeek.id,
+      weekNumber: lastWeek.week_number,
       totalWeeks,
       title: lastWeek.title,
       focus: lastWeek.focus,
@@ -125,19 +111,17 @@ async function buildStudyWeekPanel(
     };
   }
 
-  const weekNumber = Math.max(1, elapsedWeeks);
-  const week =
-    weeks.find((candidate) => candidate.week_number === weekNumber) ?? weeks[0];
-  const items = await listStudyItems(supabase, week.id);
+  const items = await listStudyItems(supabase, current.id);
 
   return {
     planId: plan.id,
     planTitle: plan.title,
-    weekNumber,
+    weekId: current.id,
+    weekNumber: current.week_number,
     totalWeeks,
-    title: week.title,
-    focus: week.focus,
-    buildTarget: week.build_target,
+    title: current.title,
+    focus: current.focus,
+    buildTarget: current.build_target,
     items,
     completed: false,
   };
@@ -222,7 +206,7 @@ export async function getTodayPageData(): Promise<TodayPageData> {
       todayDayNumber: day.day_number,
       previousBest: previousBestStreak(attempts),
     }),
-    studyWeek: await buildStudyWeekPanel(supabase, userId, today),
+    studyWeek: await buildStudyWeekPanel(supabase, userId),
   };
 }
 
@@ -600,6 +584,47 @@ export async function addStudyItemAsTask(input: {
     isMandatory: input.isMandatory,
     studyItemId: input.studyItemId,
   });
+}
+
+export async function toggleStudyPlanItem(
+  itemId: string,
+  completed: boolean,
+): Promise<ActionResult> {
+  const supabase = createServerSupabaseClient();
+  const userId = getPlaceholderUserId();
+
+  try {
+    await toggleStudyItem(supabase, userId, itemId, completed);
+  } catch (updateError) {
+    return {
+      error:
+        updateError instanceof Error
+          ? updateError.message
+          : "Failed to update the study item.",
+    };
+  }
+
+  touchMonkPaths();
+  return { ok: true };
+}
+
+export async function completeStudyModule(weekId: string): Promise<ActionResult> {
+  const supabase = createServerSupabaseClient();
+  const userId = getPlaceholderUserId();
+
+  try {
+    await completeStudyWeek(supabase, userId, weekId);
+  } catch (completeError) {
+    return {
+      error:
+        completeError instanceof Error
+          ? completeError.message
+          : "Failed to complete the module.",
+    };
+  }
+
+  touchMonkPaths();
+  return { ok: true };
 }
 
 function optionalText(value: string | null | undefined): string | null {
