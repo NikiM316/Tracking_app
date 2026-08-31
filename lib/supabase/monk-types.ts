@@ -63,6 +63,8 @@ export type MonkDay = {
   finalization_source: MonkFinalizationSource | null;
   social_media_limit_minutes: number;
   social_media_actual_minutes: number | null;
+  gaming_limit_minutes: number;
+  gaming_actual_minutes: number | null;
   accomplished: string | null;
   failed_to_do: string | null;
   why_failed: string | null;
@@ -260,6 +262,8 @@ export type MonkTables = {
       | "finalized_at"
       | "finalization_source"
       | "social_media_actual_minutes"
+      | "gaming_limit_minutes"
+      | "gaming_actual_minutes"
       | "accomplished"
       | "failed_to_do"
       | "why_failed"
@@ -272,6 +276,8 @@ export type MonkTables = {
       finalized_at?: string | null;
       finalization_source?: MonkFinalizationSource | null;
       social_media_actual_minutes?: number | null;
+      gaming_limit_minutes?: number;
+      gaming_actual_minutes?: number | null;
       accomplished?: string | null;
       failed_to_do?: string | null;
       why_failed?: string | null;

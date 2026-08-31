@@ -10,6 +10,8 @@ import {
   deleteTask,
   finalizeToday,
   reorderTasks,
+  setGamingLimit,
+  setGamingMinutes,
   setSocialMediaLimit,
   setSocialMediaMinutes,
   toggleHabitLog,
@@ -23,27 +25,129 @@ import type { StudyPlanItem } from "@/lib/supabase/monk-types";
 
 type ChecklistProps = Extract<TodayPageData, { mode: "today" }>;
 
-type SocialMediaDraft = {
+type MinutesDraft = {
   dayId: string;
   actualMinutes: number | null;
   limitMinutes: number;
 };
 
-function resolveSocialMediaValues(
-  day: ChecklistProps["day"],
-  draft: SocialMediaDraft | null,
+function resolveMinutesDraft(
+  dayId: string,
+  stored: { actualMinutes: number | null; limitMinutes: number },
+  draft: MinutesDraft | null,
 ): { actualMinutes: number | null; limitMinutes: number } {
-  if (draft?.dayId === day.id) {
+  if (draft?.dayId === dayId) {
     return {
       actualMinutes: draft.actualMinutes,
       limitMinutes: draft.limitMinutes,
     };
   }
+  return stored;
+}
 
-  return {
-    actualMinutes: day.social_media_actual_minutes,
-    limitMinutes: day.social_media_limit_minutes,
-  };
+function FastingChannel({
+  title,
+  actualMinutes,
+  limitMinutes,
+  passed,
+  locked,
+  isPending,
+  onActualChange,
+  onLimitChange,
+}: {
+  title: string;
+  actualMinutes: number | null;
+  limitMinutes: number;
+  passed: boolean;
+  locked: boolean;
+  isPending: boolean;
+  onActualChange: (value: number | null) => void;
+  onLimitChange: (value: number) => void;
+}) {
+  return (
+    <div className="mt-4 border-t border-zinc-800 pt-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-sm font-semibold text-zinc-200">{title}</h3>
+        <p
+          className={`text-xs font-semibold uppercase tracking-widest ${
+            passed ? "text-emerald-400" : "text-red-400"
+          }`}
+        >
+          {passed ? "Within limit" : actualMinutes === null ? "Not logged" : "Over limit"}
+        </p>
+      </div>
+      <dl className="mt-2 space-y-1 text-sm">
+        <div className="flex justify-between">
+          <dt className="text-zinc-500">Target</dt>
+          <dd className="font-semibold">≤ {limitMinutes} min</dd>
+        </div>
+        <div className="flex justify-between">
+          <dt className="text-zinc-500">Actual</dt>
+          <dd className="font-semibold tabular-nums">
+            {actualMinutes === null ? "Not logged" : `${actualMinutes} min`}
+          </dd>
+        </div>
+      </dl>
+      {locked ? null : (
+        <div className="mt-3 space-y-3">
+          <NumberInput
+            label="Actual"
+            unit="min"
+            min={0}
+            max={1440}
+            allowNull
+            disabled={isPending}
+            value={actualMinutes}
+            onChange={onActualChange}
+          />
+          <NumberInput
+            label="Limit"
+            unit="min"
+            min={0}
+            max={1440}
+            disabled={isPending}
+            value={limitMinutes}
+            onChange={(value) => {
+              if (value === null) return;
+              onLimitChange(value);
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReflectionField({
+  label,
+  value,
+  onChange,
+  locked,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  locked: boolean;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+        {label}
+      </span>
+      {locked ? (
+        <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
+          {value.trim() ? value : "—"}
+        </p>
+      ) : (
+        <textarea
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          rows={3}
+          className="mt-1 min-h-20 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-base leading-relaxed text-zinc-100 outline-none focus:border-emerald-500"
+        />
+      )}
+    </label>
+  );
 }
 
 function runResult(
@@ -68,16 +172,35 @@ export function TodayChecklist(data: ChecklistProps) {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [confirmFinalize, setConfirmFinalize] = useState(false);
-  const [socialMediaDraft, setSocialMediaDraft] = useState<SocialMediaDraft | null>(
+  const [socialMediaDraft, setSocialMediaDraft] = useState<MinutesDraft | null>(
     null,
+  );
+  const [gamingDraft, setGamingDraft] = useState<MinutesDraft | null>(null);
+  const [accomplished, setAccomplished] = useState(data.day.accomplished ?? "");
+  const [failedToDo, setFailedToDo] = useState(data.day.failed_to_do ?? "");
+  const [whyFailed, setWhyFailed] = useState(data.day.why_failed ?? "");
+  const [improveTomorrow, setImproveTomorrow] = useState(
+    data.day.improve_tomorrow ?? "",
   );
   const [selectedStudyItem, setSelectedStudyItem] = useState<StudyPlanItem | null>(
     null,
   );
 
-  const { actualMinutes, limitMinutes } = resolveSocialMediaValues(
-    data.day,
+  const socialMedia = resolveMinutesDraft(
+    data.day.id,
+    {
+      actualMinutes: data.day.social_media_actual_minutes,
+      limitMinutes: data.day.social_media_limit_minutes,
+    },
     socialMediaDraft,
+  );
+  const gaming = resolveMinutesDraft(
+    data.day.id,
+    {
+      actualMinutes: data.day.gaming_actual_minutes,
+      limitMinutes: data.day.gaming_limit_minutes,
+    },
+    gamingDraft,
   );
 
   const liveScore = useMemo(
@@ -85,15 +208,19 @@ export function TodayChecklist(data: ChecklistProps) {
       scoreDay({
         habits: data.habits,
         tasks: data.tasks,
-        socialMediaLimitMinutes: limitMinutes,
-        socialMediaActualMinutes: actualMinutes,
+        socialMediaLimitMinutes: socialMedia.limitMinutes,
+        socialMediaActualMinutes: socialMedia.actualMinutes,
+        gamingLimitMinutes: gaming.limitMinutes,
+        gamingActualMinutes: gaming.actualMinutes,
         maxMandatoryFailuresAllowed: data.challenge.max_mandatory_failures_allowed,
       }),
     [
       data.habits,
       data.tasks,
-      limitMinutes,
-      actualMinutes,
+      socialMedia.limitMinutes,
+      socialMedia.actualMinutes,
+      gaming.limitMinutes,
+      gaming.actualMinutes,
       data.challenge.max_mandatory_failures_allowed,
     ],
   );
@@ -400,18 +527,6 @@ export function TodayChecklist(data: ChecklistProps) {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
           Digital fasting
         </h2>
-        <dl className="mt-3 space-y-1 text-sm">
-          <div className="flex justify-between">
-            <dt className="text-zinc-500">Target</dt>
-            <dd className="font-semibold">≤ {limitMinutes} min</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-zinc-500">Actual</dt>
-            <dd className="font-semibold tabular-nums">
-              {actualMinutes === null ? "Not logged" : `${actualMinutes} min`}
-            </dd>
-          </div>
-        </dl>
         <p
           className={`mt-3 text-sm font-semibold uppercase tracking-widest ${
             liveScore.digitalFastingPassed ? "text-emerald-400" : "text-red-400"
@@ -419,42 +534,54 @@ export function TodayChecklist(data: ChecklistProps) {
         >
           {liveScore.digitalFastingPassed ? "Passed" : "Failed"}
         </p>
-        {locked ? null : (
-          <div className="mt-4 space-y-4">
-            <NumberInput
-              label="Actual"
-              unit="min"
-              min={0}
-              max={1440}
-              allowNull
-              value={actualMinutes}
-              onChange={(value) => {
-                setSocialMediaDraft({
-                  dayId: data.day.id,
-                  actualMinutes: value,
-                  limitMinutes,
-                });
-                act(() => setSocialMediaMinutes(data.day.id, value));
-              }}
-            />
-            <NumberInput
-              label="Limit"
-              unit="min"
-              min={0}
-              max={1440}
-              value={limitMinutes}
-              onChange={(value) => {
-                if (value === null) return;
-                setSocialMediaDraft({
-                  dayId: data.day.id,
-                  actualMinutes,
-                  limitMinutes: value,
-                });
-                act(() => setSocialMediaLimit(data.day.id, value));
-              }}
-            />
-          </div>
-        )}
+        <FastingChannel
+          title="Social media"
+          actualMinutes={socialMedia.actualMinutes}
+          limitMinutes={socialMedia.limitMinutes}
+          passed={liveScore.socialMediaPassed}
+          locked={locked}
+          isPending={isPending}
+          onActualChange={(value) => {
+            setSocialMediaDraft({
+              dayId: data.day.id,
+              actualMinutes: value,
+              limitMinutes: socialMedia.limitMinutes,
+            });
+            act(() => setSocialMediaMinutes(data.day.id, value));
+          }}
+          onLimitChange={(value) => {
+            setSocialMediaDraft({
+              dayId: data.day.id,
+              actualMinutes: socialMedia.actualMinutes,
+              limitMinutes: value,
+            });
+            act(() => setSocialMediaLimit(data.day.id, value));
+          }}
+        />
+        <FastingChannel
+          title="Games"
+          actualMinutes={gaming.actualMinutes}
+          limitMinutes={gaming.limitMinutes}
+          passed={liveScore.gamingPassed}
+          locked={locked}
+          isPending={isPending}
+          onActualChange={(value) => {
+            setGamingDraft({
+              dayId: data.day.id,
+              actualMinutes: value,
+              limitMinutes: gaming.limitMinutes,
+            });
+            act(() => setGamingMinutes(data.day.id, value));
+          }}
+          onLimitChange={(value) => {
+            setGamingDraft({
+              dayId: data.day.id,
+              actualMinutes: gaming.actualMinutes,
+              limitMinutes: value,
+            });
+            act(() => setGamingLimit(data.day.id, value));
+          }}
+        />
       </section>
 
       {data.studyWeek ? (
@@ -531,6 +658,41 @@ export function TodayChecklist(data: ChecklistProps) {
         />
       ) : null}
 
+      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
+          End-of-day reflection
+        </h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          Optional. Does not affect pass or fail.
+        </p>
+        <div className="mt-4 space-y-4">
+          <ReflectionField
+            label="What did I accomplish?"
+            value={locked ? (data.day.accomplished ?? "") : accomplished}
+            onChange={setAccomplished}
+            locked={locked}
+          />
+          <ReflectionField
+            label="What did I fail to do?"
+            value={locked ? (data.day.failed_to_do ?? "") : failedToDo}
+            onChange={setFailedToDo}
+            locked={locked}
+          />
+          <ReflectionField
+            label="Why?"
+            value={locked ? (data.day.why_failed ?? "") : whyFailed}
+            onChange={setWhyFailed}
+            locked={locked}
+          />
+          <ReflectionField
+            label="What will I improve tomorrow?"
+            value={locked ? (data.day.improve_tomorrow ?? "") : improveTomorrow}
+            onChange={setImproveTomorrow}
+            locked={locked}
+          />
+        </div>
+      </section>
+
       {locked ? (
         <p className="text-center text-xs text-zinc-500">
           This day is locked. Casual edits are not allowed.
@@ -564,7 +726,12 @@ export function TodayChecklist(data: ChecklistProps) {
               disabled={isPending}
               onClick={() =>
                 act(async () => {
-                  const result = await finalizeToday(data.day.id);
+                  const result = await finalizeToday(data.day.id, {
+                    accomplished,
+                    failedToDo,
+                    whyFailed,
+                    improveTomorrow,
+                  });
                   if (!("error" in result)) {
                     setConfirmFinalize(false);
                   }

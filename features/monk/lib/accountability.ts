@@ -2,6 +2,8 @@ import type { MonkChallenge, MonkDay, MonkFinalizationSource } from "@/lib/supab
 
 export const MILESTONE_DAYS = [7, 30, 60, 90, 120, 180] as const;
 
+export const DEFAULT_GAMING_LIMIT_MINUTES = 30;
+
 export type MandatoryHabitSnapshot = {
   is_mandatory_snapshot: boolean;
   is_completed: boolean;
@@ -17,6 +19,8 @@ export type DayScoreInput = {
   tasks: MandatoryTaskSnapshot[];
   socialMediaLimitMinutes: number;
   socialMediaActualMinutes: number | null;
+  gamingLimitMinutes: number;
+  gamingActualMinutes: number | null;
   maxMandatoryFailuresAllowed: number;
 };
 
@@ -25,6 +29,8 @@ export type DayScore = {
   mandatoryFailures: number;
   passed: boolean;
   digitalFastingPassed: boolean;
+  socialMediaPassed: boolean;
+  gamingPassed: boolean;
 };
 
 export function isDigitalFastingPassed(
@@ -35,13 +41,18 @@ export function isDigitalFastingPassed(
 }
 
 export function scoreDay(input: DayScoreInput): DayScore {
-  let mandatoryCount = 1;
-  let mandatoryFailures = isDigitalFastingPassed(
+  const socialMediaPassed = isDigitalFastingPassed(
     input.socialMediaActualMinutes,
     input.socialMediaLimitMinutes,
-  )
-    ? 0
-    : 1;
+  );
+  const gamingPassed = isDigitalFastingPassed(
+    input.gamingActualMinutes,
+    input.gamingLimitMinutes,
+  );
+  const digitalFastingPassed = socialMediaPassed && gamingPassed;
+
+  let mandatoryCount = 1;
+  let mandatoryFailures = digitalFastingPassed ? 0 : 1;
 
   for (const habit of input.habits) {
     if (!habit.is_mandatory_snapshot) continue;
@@ -63,10 +74,9 @@ export function scoreDay(input: DayScoreInput): DayScore {
     mandatoryCount,
     mandatoryFailures,
     passed: mandatoryFailures <= input.maxMandatoryFailuresAllowed,
-    digitalFastingPassed: isDigitalFastingPassed(
-      input.socialMediaActualMinutes,
-      input.socialMediaLimitMinutes,
-    ),
+    digitalFastingPassed,
+    socialMediaPassed,
+    gamingPassed,
   };
 }
 
