@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useOptimistic, useState, useTransition } from "react";
+import { useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 
 import { Button } from "@/features/core/components/Button";
 import { NumberInput } from "@/features/core/components/NumberInput";
@@ -225,6 +225,8 @@ export function TodayChecklist(data: ChecklistProps) {
     },
     applyChecklistOptimistic,
   );
+  const mutatingIdsRef = useRef(new Set<string>());
+  const [mutatingIds, setMutatingIds] = useState<Set<string>>(() => new Set());
   const [newTask, setNewTask] = useState("");
   const [newTaskMandatory, setNewTaskMandatory] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -286,15 +288,40 @@ export function TodayChecklist(data: ChecklistProps) {
 
   const locked = data.isLocked;
 
+  function beginItemMutation(id: string): boolean {
+    if (mutatingIdsRef.current.has(id)) {
+      return false;
+    }
+    mutatingIdsRef.current.add(id);
+    setMutatingIds(new Set(mutatingIdsRef.current));
+    return true;
+  }
+
+  function endItemMutation(id: string) {
+    mutatingIdsRef.current.delete(id);
+    setMutatingIds(new Set(mutatingIdsRef.current));
+  }
+
   function act(
     fn: () => Promise<ActionResult>,
     optimisticAction?: ChecklistOptimisticAction,
   ) {
+    const itemId = optimisticAction?.id;
+    if (itemId && !beginItemMutation(itemId)) {
+      return;
+    }
+
     startTransition(async () => {
-      if (optimisticAction) {
-        applyOptimistic(optimisticAction);
+      try {
+        if (optimisticAction) {
+          applyOptimistic(optimisticAction);
+        }
+        runResult(await fn(), setError);
+      } finally {
+        if (itemId) {
+          endItemMutation(itemId);
+        }
       }
-      runResult(await fn(), setError);
     });
   }
 
@@ -357,7 +384,7 @@ export function TodayChecklist(data: ChecklistProps) {
                 <li key={habit.id}>
                   <button
                     type="button"
-                    disabled={locked}
+                    disabled={locked || mutatingIds.has(habit.id)}
                     onClick={() =>
                       act(
                         () => toggleHabitLog(habit.id, !habit.is_completed),
@@ -447,7 +474,7 @@ export function TodayChecklist(data: ChecklistProps) {
                   <div className="flex items-start gap-2">
                     <button
                       type="button"
-                      disabled={locked}
+                      disabled={locked || mutatingIds.has(task.id)}
                       onClick={() =>
                         act(
                           () =>
@@ -458,7 +485,7 @@ export function TodayChecklist(data: ChecklistProps) {
                           { type: "toggleTask", id: task.id },
                         )
                       }
-                      className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border ${
+                      className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border disabled:opacity-50 ${
                         task.is_completed
                           ? "border-emerald-500 bg-emerald-500 text-zinc-950"
                           : "border-zinc-600"
@@ -701,7 +728,7 @@ export function TodayChecklist(data: ChecklistProps) {
                     >
                       <button
                         type="button"
-                        disabled={locked}
+                        disabled={locked || mutatingIds.has(item.id)}
                         onClick={() =>
                           act(
                             () => toggleStudyPlanItem(item.id, !item.is_completed),

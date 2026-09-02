@@ -206,6 +206,8 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
   const workoutIdRef = useRef<string | null>(initialData.workout?.id ?? null);
   const restElapsedByPrecedingSetRef = useRef<Record<string, number>>({});
   const setsByExerciseRef = useRef(setsByExercise);
+  const pendingWaterMlRef = useRef(0);
+  const confirmedWaterMlRef = useRef(initialData.workout?.water_ml ?? 0);
 
   const canLogSets = Boolean(workout?.id);
 
@@ -604,6 +606,7 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
 
       setWorkout(result.workout);
       setWaterMl(result.workout.water_ml);
+      confirmedWaterMlRef.current = result.workout.water_ml;
     })();
   }
 
@@ -611,17 +614,33 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
     if (!Number.isFinite(amountMl) || amountMl <= 0) return;
 
     setErrorMessage(null);
+    pendingWaterMlRef.current += amountMl;
+
     startWaterTransition(async () => {
       addOptimisticWater(amountMl);
-      const result = await incrementWaterMl(amountMl);
+      try {
+        const result = await incrementWaterMl(amountMl);
 
-      if (result.error || result.workout == null || result.waterMl == null) {
-        setErrorMessage(result.error ?? "Failed to update water intake.");
-        return;
+        if (result.error || result.workout == null || result.waterMl == null) {
+          setErrorMessage(result.error ?? "Failed to update water intake.");
+          return;
+        }
+
+        confirmedWaterMlRef.current = Math.max(
+          confirmedWaterMlRef.current,
+          result.waterMl,
+        );
+        const remainingPendingMl = pendingWaterMlRef.current - amountMl;
+        const reconciledWaterMl =
+          confirmedWaterMlRef.current + remainingPendingMl;
+
+        setWorkout({ ...result.workout, water_ml: reconciledWaterMl });
+        if (remainingPendingMl === 0) {
+          setWaterMl(confirmedWaterMlRef.current);
+        }
+      } finally {
+        pendingWaterMlRef.current -= amountMl;
       }
-
-      setWorkout(result.workout);
-      setWaterMl(result.waterMl);
     });
   }
 
