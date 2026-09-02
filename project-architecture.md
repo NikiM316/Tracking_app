@@ -452,21 +452,6 @@ Four `error.tsx` boundaries (root, fitness, monk — finance has none of its own
 
 The codebase is **more disciplined than most solo projects** — consistent feature-module structure, thin routes, pure domain logic separated from I/O, hand-written validation in every action, and real accessibility attention. The debt below is concentrated in a few specific, well-understood places rather than spread thin.
 
-### 7.1 Critical: no tests of any kind
-
-There is **no test file, no test runner, and no test script** in the repository. No Vitest, Jest, Playwright, or Testing Library. `npm run lint` is the only automated check.
-
-This matters far more than usual here because the app contains genuinely intricate, high-stakes pure logic that is *ideal* for unit testing and currently entirely unverified:
-
-- `scoreDay()` and `shouldResetOnFail()` — decide whether 180 days of effort are wiped out.
-- `catchUpMissedDays()` — silently finalises past days and can fail a challenge on page load.
-- `computeWarmupSets()` — percentage and rounding maths.
-- `dayNumberForDate()` / `getTodayInTimezone()` — timezone and DST boundary handling.
-- Account balance derivation and weighted-average cost basis.
-- `parseDateCell()` / `parseAmountCell()` in the CSV importer.
-
-Every one of these is a pure function with no I/O. The cost of adding a test runner and covering `features/monk/lib/accountability.ts`, `lib/utils/warmups.ts`, and `features/finance/utils.ts` would be low, and the risk reduction would be substantial. **This is the single highest-value gap in the project.**
-
 ### 7.2 Critical: schema is not reproducible
 
 Ten migrations exist on the live Supabase project; **zero** exist in the repo. A fresh clone cannot create its database. The remedy is to run `supabase db pull` (or export each migration) into a committed `supabase/migrations/` directory, plus a seed script for the 70 exercises, 21 finance categories, and the 6-week study plan.

@@ -57,6 +57,41 @@ describe("netMovementByAccount", () => {
     expect(movements.size).toBe(0);
   });
 
+  it("reconciles two linked transfer rows as one logical transfer", () => {
+    const sourceId = "tx-out";
+    const destId = "tx-in";
+    const source = tx({
+      id: sourceId,
+      type: "transfer",
+      amount: 300,
+      account_id: CHECKING,
+      transfer_account_id: SAVINGS,
+      transfer_transaction_id: destId,
+      created_at: "2026-09-01T10:00:00Z",
+    });
+    const dest = tx({
+      id: destId,
+      type: "transfer",
+      amount: 300,
+      account_id: SAVINGS,
+      transfer_account_id: CHECKING,
+      transfer_transaction_id: sourceId,
+      created_at: "2026-09-01T10:00:01Z",
+    });
+
+    // Applying both rows independently would cancel (mirrors) or double
+    // (twins). Either ordering must debit source and credit dest once.
+    for (const rows of [
+      [source, dest],
+      [dest, source],
+    ]) {
+      const movements = netMovementByAccount(rows);
+      expect(movements.get(CHECKING)).toBe(-300);
+      expect(movements.get(SAVINGS)).toBe(300);
+      expect(movements.size).toBe(2);
+    }
+  });
+
   it("ignores unrecognized transaction types", () => {
     expect(netMovementByAccount([tx({ type: "wat", amount: 999 })]).size).toBe(0);
   });

@@ -83,6 +83,7 @@ class FakeQuery implements PromiseLike<FakeSupabaseResult> {
   private wantsCount = false;
   private headOnly = false;
   private returnsRows = false;
+  private executed: FakeSupabaseResult | undefined;
 
   constructor(
     private readonly db: FakeSupabase,
@@ -144,6 +145,10 @@ class FakeQuery implements PromiseLike<FakeSupabaseResult> {
     return rows;
   }
 
+  private snapshot(row: Row): Row {
+    return { ...row };
+  }
+
   private run(): FakeSupabaseResult {
     if (this.operation === "insert") {
       const inserted = this.payload.map((row) => {
@@ -154,7 +159,7 @@ class FakeQuery implements PromiseLike<FakeSupabaseResult> {
           ...row,
         };
         this.db.rows(this.table).push(created);
-        return created;
+        return this.snapshot(created);
       });
 
       return { data: this.returnsRows ? inserted : null, error: null };
@@ -163,10 +168,12 @@ class FakeQuery implements PromiseLike<FakeSupabaseResult> {
     if (this.operation === "update") {
       const targets = this.matching();
       const patch = this.payload[0];
+      const updated: Row[] = [];
       for (const target of targets) {
         Object.assign(target, patch);
+        updated.push(this.snapshot(target));
       }
-      return { data: this.returnsRows ? targets : null, error: null };
+      return { data: this.returnsRows ? updated : null, error: null };
     }
 
     const rows = this.matching();
@@ -182,8 +189,13 @@ class FakeQuery implements PromiseLike<FakeSupabaseResult> {
     return { data: rows, error: null };
   }
 
+  private execute(): FakeSupabaseResult {
+    this.executed ??= this.run();
+    return this.executed;
+  }
+
   async maybeSingle(): Promise<FakeSupabaseResult> {
-    const result = this.run();
+    const result = this.execute();
     const rows = (result.data as Row[] | null) ?? [];
 
     if (rows.length > 1) {
@@ -197,7 +209,7 @@ class FakeQuery implements PromiseLike<FakeSupabaseResult> {
   }
 
   async single(): Promise<FakeSupabaseResult> {
-    const result = this.run();
+    const result = this.execute();
     const rows = (result.data as Row[] | null) ?? [];
 
     if (rows.length !== 1) {
@@ -219,7 +231,7 @@ class FakeQuery implements PromiseLike<FakeSupabaseResult> {
       | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
-    return Promise.resolve(this.run()).then(onfulfilled, onrejected);
+    return Promise.resolve(this.execute()).then(onfulfilled, onrejected);
   }
 }
 

@@ -86,7 +86,9 @@ export async function getAccounts(): Promise<AccountWithBalance[]> {
 
   const { data: transactions, error: transactionsError } = await supabase
     .from("finance_transactions")
-    .select("account_id, type, amount, transfer_account_id")
+    .select(
+      "id, account_id, type, amount, transfer_account_id, transfer_transaction_id, created_at",
+    )
     .eq("user_id", userId);
 
   if (transactionsError) {
