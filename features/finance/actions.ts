@@ -15,6 +15,10 @@ import type {
   UpdateTransactionData,
 } from "@/features/finance/types";
 import {
+  deriveAccountBalances,
+  nextHoldingPosition,
+} from "@/features/finance/lib/balances";
+import {
   getLiveCryptoPrices as fetchLiveCryptoPrices,
   isEthereumHolding,
 } from "@/features/finance/lib/crypto-prices";
@@ -82,7 +86,9 @@ export async function getAccounts(): Promise<AccountWithBalance[]> {
 
   const { data: transactions, error: transactionsError } = await supabase
     .from("finance_transactions")
-    .select("account_id, type, amount, transfer_account_id")
+    .select(
+      "id, account_id, type, amount, transfer_account_id, transfer_transaction_id, created_at",
+    )
     .eq("user_id", userId);
 
   if (transactionsError) {
@@ -91,31 +97,7 @@ export async function getAccounts(): Promise<AccountWithBalance[]> {
     );
   }
 
-  const netMovementByAccountId = new Map<string, number>();
-  const addMovement = (accountId: string, amount: number) => {
-    netMovementByAccountId.set(
-      accountId,
-      (netMovementByAccountId.get(accountId) ?? 0) + amount,
-    );
-  };
-
-  for (const transaction of transactions ?? []) {
-    const amount = Number(transaction.amount);
-
-    if (transaction.type === "income") {
-      addMovement(transaction.account_id, amount);
-    } else if (transaction.type === "expense") {
-      addMovement(transaction.account_id, -amount);
-    } else if (transaction.type === "transfer" && transaction.transfer_account_id) {
-      addMovement(transaction.account_id, -amount);
-      addMovement(transaction.transfer_account_id, amount);
-    }
-  }
-
-  return accounts.map((account) => ({
-    ...account,
-    balance: Number(account.opening_balance) + (netMovementByAccountId.get(account.id) ?? 0),
-  }));
+  return deriveAccountBalances(accounts, transactions ?? []);
 }
 
 /**
@@ -897,19 +879,14 @@ export async function createInvestmentTransaction(
     };
   }
 
-  let nextQuantity: number;
-  let nextAverageCost: number;
-
-  if (input.type === "buy") {
-    nextQuantity = previousQuantity + quantity;
-    nextAverageCost =
-      nextQuantity === 0
-        ? 0
-        : (previousQuantity * previousAverageCost + quantity * price) / nextQuantity;
-  } else {
-    nextQuantity = previousQuantity - quantity;
-    nextAverageCost = nextQuantity === 0 ? 0 : previousAverageCost;
-  }
+  const { quantity: nextQuantity, averageCost: nextAverageCost } =
+    nextHoldingPosition({
+      type: input.type,
+      quantity,
+      price,
+      previousQuantity,
+      previousAverageCost,
+    });
 
   if (existingHolding) {
     const { error: updateError } = await supabase

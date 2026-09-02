@@ -33,6 +33,11 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# supabase cli local state (migrations, seed.sql and config.toml are committed)
+supabase/.branches
+supabase/.temp
+supabase/snippets
+
 # vercel
 .vercel
 
