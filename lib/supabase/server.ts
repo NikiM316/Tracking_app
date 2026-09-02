@@ -46,8 +46,9 @@ function createNewFormatKeyFetch(apiKey: string): typeof fetch {
 
     // Avoid re-spreading the original headers object (which still contains the
     // Bearer API key) so undici/Next cannot merge it back in.
-    const { headers: _ignoredHeaders, cache: _ignoredCache, ...rest } =
-      init ?? {};
+    const rest = { ...(init ?? {}) };
+    delete rest.headers;
+    delete rest.cache;
 
     const doFetch = () =>
       fetch(input, {

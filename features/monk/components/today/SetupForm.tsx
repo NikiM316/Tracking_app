@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 
 import { Button } from "@/features/core/components/Button";
 import { startChallenge } from "@/features/monk/actions/challenge";
@@ -25,7 +24,6 @@ function newRow(key: string): DraftRow {
 }
 
 export function SetupForm({ defaultLimit, existingHabitCount }: SetupFormProps) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [limit, setLimit] = useState(String(defaultLimit));
   const [rows, setRows] = useState<DraftRow[]>([
@@ -67,10 +65,7 @@ export function SetupForm({ defaultLimit, existingHabitCount }: SetupFormProps) 
 
       if ("error" in result) {
         setError(result.error);
-        return;
       }
-
-      router.refresh();
     });
   }
 

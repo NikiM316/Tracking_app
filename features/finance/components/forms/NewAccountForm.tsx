@@ -57,7 +57,6 @@ export function NewAccountForm() {
       }
 
       router.push("/finance");
-      router.refresh();
     });
   }
 

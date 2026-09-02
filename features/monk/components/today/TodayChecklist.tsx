@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useOptimistic, useState, useTransition } from "react";
 
 import { Button } from "@/features/core/components/Button";
 import { NumberInput } from "@/features/core/components/NumberInput";
@@ -22,8 +21,8 @@ import {
 import { StudyItemAddModal } from "@/features/monk/components/today/StudyItemAddModal";
 import { scoreDay } from "@/features/monk/lib/accountability";
 import { formatHabitTarget } from "@/features/monk/lib/format";
-import type { ActionResult, TodayPageData } from "@/features/monk/types";
-import type { StudyPlanItem } from "@/lib/supabase/monk-types";
+import type { ActionResult, MonkHabitLogView, TodayPageData } from "@/features/monk/types";
+import type { MonkTask, StudyPlanItem } from "@/lib/supabase/monk-types";
 
 type ChecklistProps = Extract<TodayPageData, { mode: "today" }>;
 
@@ -152,23 +151,80 @@ function ReflectionField({
   );
 }
 
+type ChecklistOptimistic = {
+  habits: MonkHabitLogView[];
+  tasks: MonkTask[];
+  studyItems: StudyPlanItem[];
+};
+
+type ChecklistOptimisticAction =
+  | { type: "toggleHabit"; id: string }
+  | { type: "toggleTask"; id: string }
+  | { type: "deleteTask"; id: string }
+  | { type: "toggleStudyItem"; id: string };
+
+function applyChecklistOptimistic(
+  current: ChecklistOptimistic,
+  action: ChecklistOptimisticAction,
+): ChecklistOptimistic {
+  switch (action.type) {
+    case "toggleHabit":
+      return {
+        ...current,
+        habits: current.habits.map((habit) =>
+          habit.id === action.id
+            ? { ...habit, is_completed: !habit.is_completed }
+            : habit,
+        ),
+      };
+    case "toggleTask":
+      return {
+        ...current,
+        tasks: current.tasks.map((task) =>
+          task.id === action.id
+            ? { ...task, is_completed: !task.is_completed }
+            : task,
+        ),
+      };
+    case "deleteTask":
+      return {
+        ...current,
+        tasks: current.tasks.filter((task) => task.id !== action.id),
+      };
+    case "toggleStudyItem":
+      return {
+        ...current,
+        studyItems: current.studyItems.map((item) =>
+          item.id === action.id
+            ? { ...item, is_completed: !item.is_completed }
+            : item,
+        ),
+      };
+  }
+}
+
 function runResult(
   result: ActionResult,
   setError: (value: string | null) => void,
-  refresh: () => void,
 ) {
   if ("error" in result) {
     setError(result.error);
     return;
   }
   setError(null);
-  refresh();
 }
 
 export function TodayChecklist(data: ChecklistProps) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [optimistic, applyOptimistic] = useOptimistic(
+    {
+      habits: data.habits,
+      tasks: data.tasks,
+      studyItems: data.studyWeek?.items ?? [],
+    },
+    applyChecklistOptimistic,
+  );
   const [newTask, setNewTask] = useState("");
   const [newTaskMandatory, setNewTaskMandatory] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -209,8 +265,8 @@ export function TodayChecklist(data: ChecklistProps) {
   const liveScore = useMemo(
     () =>
       scoreDay({
-        habits: data.habits,
-        tasks: data.tasks,
+        habits: optimistic.habits,
+        tasks: optimistic.tasks,
         socialMediaLimitMinutes: socialMedia.limitMinutes,
         socialMediaActualMinutes: socialMedia.actualMinutes,
         gamingLimitMinutes: gaming.limitMinutes,
@@ -218,8 +274,8 @@ export function TodayChecklist(data: ChecklistProps) {
         maxMandatoryFailuresAllowed: data.challenge.max_mandatory_failures_allowed,
       }),
     [
-      data.habits,
-      data.tasks,
+      optimistic.habits,
+      optimistic.tasks,
       socialMedia.limitMinutes,
       socialMedia.actualMinutes,
       gaming.limitMinutes,
@@ -229,11 +285,16 @@ export function TodayChecklist(data: ChecklistProps) {
   );
 
   const locked = data.isLocked;
-  const refresh = () => router.refresh();
 
-  function act(fn: () => Promise<ActionResult>) {
+  function act(
+    fn: () => Promise<ActionResult>,
+    optimisticAction?: ChecklistOptimisticAction,
+  ) {
     startTransition(async () => {
-      runResult(await fn(), setError, refresh);
+      if (optimisticAction) {
+        applyOptimistic(optimisticAction);
+      }
+      runResult(await fn(), setError);
     });
   }
 
@@ -281,13 +342,13 @@ export function TodayChecklist(data: ChecklistProps) {
           </h2>
           <p className="text-xs text-zinc-500">Recurring · snapshot today</p>
         </div>
-        {data.habits.length === 0 ? (
+        {optimistic.habits.length === 0 ? (
           <p className="mt-3 text-sm text-zinc-500">
             No active habits. Add them on the Habits tab.
           </p>
         ) : (
           <ul className="mt-3 space-y-2">
-            {data.habits.map((habit) => {
+            {optimistic.habits.map((habit) => {
               const target = formatHabitTarget(
                 habit.target_value_snapshot,
                 habit.target_unit_snapshot,
@@ -296,8 +357,13 @@ export function TodayChecklist(data: ChecklistProps) {
                 <li key={habit.id}>
                   <button
                     type="button"
-                    disabled={locked || isPending}
-                    onClick={() => act(() => toggleHabitLog(habit.id, !habit.is_completed))}
+                    disabled={locked}
+                    onClick={() =>
+                      act(
+                        () => toggleHabitLog(habit.id, !habit.is_completed),
+                        { type: "toggleHabit", id: habit.id },
+                      )
+                    }
                     className={`flex min-h-14 w-full items-center gap-3 rounded-xl border px-3 text-left transition-colors disabled:opacity-50 ${
                       habit.is_completed
                         ? "border-emerald-800/80 bg-emerald-950/30"
@@ -334,11 +400,11 @@ export function TodayChecklist(data: ChecklistProps) {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
           Today&apos;s tasks
         </h2>
-        {data.tasks.length === 0 ? (
+        {optimistic.tasks.length === 0 ? (
           <p className="mt-3 text-sm text-zinc-500">No tasks yet.</p>
         ) : (
           <ul className="mt-3 space-y-2">
-            {data.tasks.map((task, index) => (
+            {optimistic.tasks.map((task, index) => (
               <li
                 key={task.id}
                 className="rounded-xl border border-zinc-800 bg-zinc-950 p-3"
@@ -381,13 +447,15 @@ export function TodayChecklist(data: ChecklistProps) {
                   <div className="flex items-start gap-2">
                     <button
                       type="button"
-                      disabled={locked || isPending}
+                      disabled={locked}
                       onClick={() =>
-                        act(() =>
-                          updateTask({
-                            taskId: task.id,
-                            isCompleted: !task.is_completed,
-                          }),
+                        act(
+                          () =>
+                            updateTask({
+                              taskId: task.id,
+                              isCompleted: !task.is_completed,
+                            }),
+                          { type: "toggleTask", id: task.id },
                         )
                       }
                       className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border ${
@@ -417,7 +485,7 @@ export function TodayChecklist(data: ChecklistProps) {
                           disabled={index === 0 || isPending}
                           aria-label="Move up"
                           onClick={() => {
-                            const ids = data.tasks.map((item) => item.id);
+                            const ids = optimistic.tasks.map((item) => item.id);
                             const next = [...ids];
                             [next[index - 1], next[index]] = [next[index], next[index - 1]];
                             act(() => reorderTasks(data.day.id, next));
@@ -428,10 +496,10 @@ export function TodayChecklist(data: ChecklistProps) {
                         </button>
                         <button
                           type="button"
-                          disabled={index === data.tasks.length - 1 || isPending}
+                          disabled={index === optimistic.tasks.length - 1 || isPending}
                           aria-label="Move down"
                           onClick={() => {
-                            const ids = data.tasks.map((item) => item.id);
+                            const ids = optimistic.tasks.map((item) => item.id);
                             const next = [...ids];
                             [next[index + 1], next[index]] = [next[index], next[index + 1]];
                             act(() => reorderTasks(data.day.id, next));
@@ -473,7 +541,12 @@ export function TodayChecklist(data: ChecklistProps) {
                     <Button
                       variant="ghost"
                       className="min-h-10 px-3 text-xs text-red-400"
-                      onClick={() => act(() => deleteTask(task.id))}
+                      onClick={() =>
+                        act(() => deleteTask(task.id), {
+                          type: "deleteTask",
+                          id: task.id,
+                        })
+                      }
                     >
                       Delete
                     </Button>
@@ -615,9 +688,9 @@ export function TodayChecklist(data: ChecklistProps) {
                   Build: {data.studyWeek.buildTarget}
                 </p>
               ) : null}
-              {data.studyWeek.items.length > 0 ? (
+              {optimistic.studyItems.length > 0 ? (
                 <ul className="mt-4 space-y-2">
-                  {data.studyWeek.items.map((item) => (
+                  {optimistic.studyItems.map((item) => (
                     <li
                       key={item.id}
                       className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${
@@ -628,10 +701,11 @@ export function TodayChecklist(data: ChecklistProps) {
                     >
                       <button
                         type="button"
-                        disabled={locked || isPending}
+                        disabled={locked}
                         onClick={() =>
-                          act(() =>
-                            toggleStudyPlanItem(item.id, !item.is_completed),
+                          act(
+                            () => toggleStudyPlanItem(item.id, !item.is_completed),
+                            { type: "toggleStudyItem", id: item.id },
                           )
                         }
                         className="flex min-h-12 min-w-0 flex-1 items-center gap-3 text-left disabled:opacity-50"
@@ -739,7 +813,7 @@ export function TodayChecklist(data: ChecklistProps) {
           onClose={() => setSelectedStudyItem(null)}
           onAdded={(result) => {
             setSelectedStudyItem(null);
-            runResult(result, setError, refresh);
+            runResult(result, setError);
           }}
         />
       ) : null}

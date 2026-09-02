@@ -31,7 +31,6 @@ export function NewPortfolioForm() {
       }
 
       router.push("/finance");
-      router.refresh();
     });
   }
 

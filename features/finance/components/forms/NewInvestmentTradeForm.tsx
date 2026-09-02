@@ -91,7 +91,6 @@ export function NewInvestmentTradeForm({ portfolios }: NewInvestmentTradeFormPro
       }
 
       router.push("/finance");
-      router.refresh();
     });
   }
 

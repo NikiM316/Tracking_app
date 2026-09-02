@@ -105,7 +105,6 @@ export function NewTransactionForm({ accounts, categories }: NewTransactionFormP
       }
 
       router.push("/finance");
-      router.refresh();
     });
   }
 

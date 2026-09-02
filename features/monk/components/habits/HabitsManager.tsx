@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 
 import { Button } from "@/features/core/components/Button";
 import {
@@ -16,18 +15,15 @@ import type { MonkHabit } from "@/lib/supabase/monk-types";
 function run(
   result: ActionResult,
   setError: (value: string | null) => void,
-  refresh: () => void,
 ) {
   if ("error" in result) {
     setError(result.error);
     return;
   }
   setError(null);
-  refresh();
 }
 
 export function HabitsManager({ habits }: HabitPageData) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -42,11 +38,9 @@ export function HabitsManager({ habits }: HabitPageData) {
     targetUnit: "",
   });
 
-  const refresh = () => router.refresh();
-
   function act(fn: () => Promise<ActionResult>) {
     startTransition(async () => {
-      run(await fn(), setError, refresh);
+      run(await fn(), setError);
     });
   }
 

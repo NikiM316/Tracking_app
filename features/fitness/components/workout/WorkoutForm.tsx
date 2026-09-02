@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 
 import { Button } from "@/features/core/components/Button";
 import { ExerciseBlock } from "@/features/fitness/components/workout/ExerciseBlock";
@@ -171,6 +171,11 @@ function groupSetsByExercise(
 export function WorkoutForm({ initialData }: WorkoutFormProps) {
   const [workout, setWorkout] = useState(initialData.workout);
   const [waterMl, setWaterMl] = useState(initialData.workout?.water_ml ?? 0);
+  const [optimisticWaterMl, addOptimisticWater] = useOptimistic(
+    waterMl,
+    (current, amountMl: number) => current + amountMl,
+  );
+  const [, startWaterTransition] = useTransition();
   const [setsByExercise, setSetsByExercise] = useState(() =>
     groupSetsByExercise(initialData.exercises, initialData.sets),
   );
@@ -605,31 +610,25 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
   function handleAddWater(amountMl: number) {
     if (!Number.isFinite(amountMl) || amountMl <= 0) return;
 
-    const previousWaterMl = waterMl;
-    const optimisticWaterMl = previousWaterMl + amountMl;
-
-    // Instant UI update; server write happens in the background.
-    setWaterMl(optimisticWaterMl);
     setErrorMessage(null);
-
-    void (async () => {
+    startWaterTransition(async () => {
+      addOptimisticWater(amountMl);
       const result = await incrementWaterMl(amountMl);
 
       if (result.error || result.workout == null || result.waterMl == null) {
-        setWaterMl(previousWaterMl);
         setErrorMessage(result.error ?? "Failed to update water intake.");
         return;
       }
 
       setWorkout(result.workout);
       setWaterMl(result.waterMl);
-    })();
+    });
   }
 
   if (initialData.exercises.length === 0) {
     return (
       <div className="space-y-5">
-        <WaterTracker waterMl={waterMl} onAdd={handleAddWater} />
+        <WaterTracker waterMl={optimisticWaterMl} onAdd={handleAddWater} />
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
           <h2 className="text-lg font-semibold text-zinc-50">Rest / unprogrammed day</h2>
           <p className="mt-2 text-sm leading-relaxed text-zinc-400">
@@ -652,7 +651,7 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
   if (workout?.completed_at) {
     return (
       <div className="space-y-5">
-        <WaterTracker waterMl={waterMl} onAdd={handleAddWater} />
+        <WaterTracker waterMl={optimisticWaterMl} onAdd={handleAddWater} />
         <WorkoutCompleteSummary
           programLabel={initialData.programLabel}
           completedAt={workout.completed_at}
@@ -674,7 +673,7 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
 
   return (
     <div className="space-y-5">
-      <WaterTracker waterMl={waterMl} onAdd={handleAddWater} />
+      <WaterTracker waterMl={optimisticWaterMl} onAdd={handleAddWater} />
 
       <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
         <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">

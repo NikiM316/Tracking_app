@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 
 import { Button } from "@/features/core/components/Button";
 import { startChallenge } from "@/features/monk/actions/challenge";
@@ -74,7 +73,6 @@ function ResetBanner({
   summary: ClosedChallengeSummary;
   defaultLimit: number;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -102,9 +100,7 @@ function ResetBanner({
             });
             if ("error" in result) {
               setError(result.error);
-              return;
             }
-            router.refresh();
           });
         }}
       >
