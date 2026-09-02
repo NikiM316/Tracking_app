@@ -1,0 +1,32 @@
+# Supabase CLI configuration.
+# Linked remote project: rxfcnpdwwkfaaxnciyxj (region eu-west-2).
+# Anything omitted here falls back to the CLI's defaults.
+
+project_id = "tracking-app"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+# The app has no login flow; the single placeholder user is inserted by the
+# baseline migration. See SECURITY.md.
+site_url = "http://127.0.0.1:3000"
+enable_signup = false
