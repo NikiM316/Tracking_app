@@ -20,6 +20,7 @@
 REVOKE EXECUTE ON FUNCTION public.increment_workout_water(uuid, integer) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.increment_workout_water(uuid, integer) FROM anon;
 REVOKE EXECUTE ON FUNCTION public.increment_workout_water(uuid, integer) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.increment_workout_water(uuid, integer) TO service_role;
 
 -- 2. Explicit deny-all policies on every table -------------------------------
 -- Applied as a loop so the invariant holds for tables added later: re-running
@@ -59,5 +60,28 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM authenticate
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM authenticated;
 
--- service_role is deliberately untouched: it is the only role the app uses and
--- it bypasses RLS by design (BYPASSRLS), which is what keeps the app working.
+-- Postgres grants EXECUTE on new functions to PUBLIC. Revoke that default for
+-- every role that can create functions, globally (no IN SCHEMA), so a later
+-- SECURITY DEFINER RPC cannot become anon-callable the way increment_workout_water
+-- was. Do not GRANT EXECUTE back to anon or authenticated.
+DO $$
+DECLARE
+  creator_role text;
+BEGIN
+  FOR creator_role IN
+    SELECT rolname
+    FROM pg_roles
+    WHERE has_schema_privilege(rolname, 'public', 'CREATE')
+      AND rolname NOT LIKE 'pg_%'
+    ORDER BY rolname
+  LOOP
+    EXECUTE format(
+      'ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC',
+      creator_role
+    );
+  END LOOP;
+END $$;
+
+-- Table and sequence grants for service_role stay as they are (BYPASSRLS).
+-- Function execute is granted only on increment_workout_water above; new
+-- functions must be granted to service_role explicitly.
