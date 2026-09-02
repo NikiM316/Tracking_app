@@ -104,7 +104,6 @@ export function ImportCsvForm({ accounts }: ImportCsvFormProps) {
       }
 
       router.push("/finance");
-      router.refresh();
     });
   }
 

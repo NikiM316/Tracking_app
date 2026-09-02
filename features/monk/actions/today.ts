@@ -25,7 +25,6 @@ import {
   listTasks,
   lockedError,
   prepareActiveChallenge,
-  revalidateMonkPaths,
   toggleStudyItem,
 } from "@/features/monk/lib/challenge-ops";
 import { getTodayInTimezone } from "@/features/monk/lib/dates";
@@ -39,8 +38,10 @@ import type {
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { MonkChallenge, MonkDay, MonkHabit } from "@/lib/supabase/monk-types";
 
-function touchMonkPaths() {
-  for (const path of revalidateMonkPaths()) {
+type MonkPath = "/monk" | "/monk/challenge" | "/monk/habits";
+
+function touchMonkPaths(...paths: MonkPath[]) {
+  for (const path of paths) {
     revalidatePath(path);
   }
 }
@@ -264,7 +265,7 @@ export async function toggleHabitLog(
     return { error: error.message };
   }
 
-  touchMonkPaths();
+  touchMonkPaths("/monk");
   return { ok: true };
 }
 
@@ -301,7 +302,7 @@ export async function addTask(input: {
     return { error: error.message };
   }
 
-  touchMonkPaths();
+  touchMonkPaths("/monk");
   return { ok: true };
 }
 
@@ -360,7 +361,7 @@ export async function updateTask(input: {
     return { error: error.message };
   }
 
-  touchMonkPaths();
+  touchMonkPaths("/monk");
   return { ok: true };
 }
 
@@ -390,7 +391,7 @@ export async function deleteTask(taskId: string): Promise<ActionResult> {
     return { error: error.message };
   }
 
-  touchMonkPaths();
+  touchMonkPaths("/monk");
   return { ok: true };
 }
 
@@ -413,7 +414,7 @@ export async function reorderTasks(
     return { error: failed.error.message };
   }
 
-  touchMonkPaths();
+  touchMonkPaths("/monk");
   return { ok: true };
 }
 
@@ -440,7 +441,7 @@ export async function setSocialMediaMinutes(
     return { error: error.message };
   }
 
-  touchMonkPaths();
+  touchMonkPaths("/monk");
   return { ok: true };
 }
 
@@ -486,7 +487,7 @@ export async function setSocialMediaLimit(
     return { error: challengeError.message };
   }
 
-  touchMonkPaths();
+  touchMonkPaths("/monk");
   return { ok: true };
 }
 
@@ -521,7 +522,7 @@ export async function setGamingMinutes(
     return { error: error.message };
   }
 
-  touchMonkPaths();
+  touchMonkPaths("/monk");
   return { ok: true };
 }
 
@@ -548,7 +549,7 @@ export async function setGamingLimit(
     return { error: error.message };
   }
 
-  touchMonkPaths();
+  touchMonkPaths("/monk");
   return { ok: true };
 }
 
@@ -604,7 +605,7 @@ export async function toggleStudyPlanItem(
     };
   }
 
-  touchMonkPaths();
+  touchMonkPaths("/monk");
   return { ok: true };
 }
 
@@ -623,7 +624,7 @@ export async function completeStudyModule(weekId: string): Promise<ActionResult>
     };
   }
 
-  touchMonkPaths();
+  touchMonkPaths("/monk");
   return { ok: true };
 }
 
@@ -692,6 +693,6 @@ export async function finalizeToday(
     };
   }
 
-  touchMonkPaths();
+  touchMonkPaths("/monk", "/monk/challenge");
   return { ok: true };
 }

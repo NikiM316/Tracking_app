@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition, type ChangeEvent } from "react";
 
 import { updateWorkoutCycleDay } from "@/features/fitness/actions/workout";
@@ -15,7 +14,6 @@ export function CycleDaySelector({
   workoutId,
   cycleDay,
 }: CycleDaySelectorProps) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -32,10 +30,7 @@ export function CycleDaySelector({
 
       if (result.error || !result.workout) {
         setErrorMessage(result.error ?? "Failed to update cycle day.");
-        return;
       }
-
-      router.refresh();
     });
   }
 

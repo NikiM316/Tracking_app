@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: perf-roundtrips
     content: "Phase 1: Remove redundant router.refresh() calls, narrow touchMonkPaths(), add useOptimistic to habit/task/study toggles"
-    status: pending
+    status: completed
   - id: perf-streaming
     content: "Phase 2: Add loading.tsx + Suspense per route group, set staleTimes in next.config.ts, switch dev script off --webpack"
     status: pending

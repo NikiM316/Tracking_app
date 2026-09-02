@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 
 import { Button } from "@/features/core/components/Button";
 import { startChallenge } from "@/features/monk/actions/challenge";
@@ -19,7 +18,6 @@ export function ResetScreen({
   defaultLimit,
   variant,
 }: ResetScreenProps) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const { challenge, canStartNow, canStartOn } = summary;
@@ -35,9 +33,7 @@ export function ResetScreen({
       });
       if ("error" in result) {
         setError(result.error);
-        return;
       }
-      router.refresh();
     });
   }
 

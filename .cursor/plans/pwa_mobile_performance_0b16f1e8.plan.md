@@ -7,13 +7,13 @@ todos:
     status: pending
   - id: round-trips
     content: "Phase 1a: Audit all 13 router.refresh() sites and remove the ones duplicating revalidatePath on the current route"
-    status: pending
+    status: completed
   - id: narrow-revalidate
     content: "Phase 1b: Narrow touchMonkPaths() from three revalidatePath calls to the mutated route only"
-    status: pending
+    status: completed
   - id: optimistic
     content: "Phase 1c: Add useOptimistic to habit toggle, task complete/delete, and study-item toggle in TodayChecklist"
-    status: pending
+    status: completed
   - id: streaming
     content: "Phase 2a: Add loading.tsx to the three route groups and wrap page data fetches in Suspense child components"
     status: pending

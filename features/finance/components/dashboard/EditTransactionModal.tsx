@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 
 import { Button } from "@/features/core/components/Button";
 import { deleteTransaction, updateTransaction } from "@/features/finance/actions";
@@ -27,7 +26,6 @@ export function EditTransactionModal({
   categories,
   onClose,
 }: EditTransactionModalProps) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [amount, setAmount] = useState(String(transaction.amount));
   const [date, setDate] = useState(transaction.date);
@@ -96,7 +94,6 @@ export function EditTransactionModal({
         return;
       }
 
-      router.refresh();
       onClose();
     });
   }
@@ -116,7 +113,6 @@ export function EditTransactionModal({
         return;
       }
 
-      router.refresh();
       onClose();
     });
   }

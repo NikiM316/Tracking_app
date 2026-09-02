@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 
 import { Button } from "@/features/core/components/Button";
 import { ExerciseBlock } from "@/features/fitness/components/workout/ExerciseBlock";
@@ -171,6 +171,11 @@ function groupSetsByExercise(
 export function WorkoutForm({ initialData }: WorkoutFormProps) {
   const [workout, setWorkout] = useState(initialData.workout);
   const [waterMl, setWaterMl] = useState(initialData.workout?.water_ml ?? 0);
+  const [optimisticWaterMl, addOptimisticWater] = useOptimistic(
+    waterMl,
+    (current, amountMl: number) => current + amountMl,
+  );
+  const [, startWaterTransition] = useTransition();
   const [setsByExercise, setSetsByExercise] = useState(() =>
     groupSetsByExercise(initialData.exercises, initialData.sets),
   );
@@ -201,6 +206,8 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
   const workoutIdRef = useRef<string | null>(initialData.workout?.id ?? null);
   const restElapsedByPrecedingSetRef = useRef<Record<string, number>>({});
   const setsByExerciseRef = useRef(setsByExercise);
+  const pendingWaterMlRef = useRef(0);
+  const confirmedWaterMlRef = useRef(initialData.workout?.water_ml ?? 0);
 
   const canLogSets = Boolean(workout?.id);
 
@@ -599,37 +606,48 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
 
       setWorkout(result.workout);
       setWaterMl(result.workout.water_ml);
+      confirmedWaterMlRef.current = result.workout.water_ml;
     })();
   }
 
   function handleAddWater(amountMl: number) {
     if (!Number.isFinite(amountMl) || amountMl <= 0) return;
 
-    const previousWaterMl = waterMl;
-    const optimisticWaterMl = previousWaterMl + amountMl;
-
-    // Instant UI update; server write happens in the background.
-    setWaterMl(optimisticWaterMl);
     setErrorMessage(null);
+    pendingWaterMlRef.current += amountMl;
 
-    void (async () => {
-      const result = await incrementWaterMl(amountMl);
+    startWaterTransition(async () => {
+      addOptimisticWater(amountMl);
+      try {
+        const result = await incrementWaterMl(amountMl);
 
-      if (result.error || result.workout == null || result.waterMl == null) {
-        setWaterMl(previousWaterMl);
-        setErrorMessage(result.error ?? "Failed to update water intake.");
-        return;
+        if (result.error || result.workout == null || result.waterMl == null) {
+          setErrorMessage(result.error ?? "Failed to update water intake.");
+          return;
+        }
+
+        confirmedWaterMlRef.current = Math.max(
+          confirmedWaterMlRef.current,
+          result.waterMl,
+        );
+        const remainingPendingMl = pendingWaterMlRef.current - amountMl;
+        const reconciledWaterMl =
+          confirmedWaterMlRef.current + remainingPendingMl;
+
+        setWorkout({ ...result.workout, water_ml: reconciledWaterMl });
+        if (remainingPendingMl === 0) {
+          setWaterMl(confirmedWaterMlRef.current);
+        }
+      } finally {
+        pendingWaterMlRef.current -= amountMl;
       }
-
-      setWorkout(result.workout);
-      setWaterMl(result.waterMl);
-    })();
+    });
   }
 
   if (initialData.exercises.length === 0) {
     return (
       <div className="space-y-5">
-        <WaterTracker waterMl={waterMl} onAdd={handleAddWater} />
+        <WaterTracker waterMl={optimisticWaterMl} onAdd={handleAddWater} />
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
           <h2 className="text-lg font-semibold text-zinc-50">Rest / unprogrammed day</h2>
           <p className="mt-2 text-sm leading-relaxed text-zinc-400">
@@ -652,7 +670,7 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
   if (workout?.completed_at) {
     return (
       <div className="space-y-5">
-        <WaterTracker waterMl={waterMl} onAdd={handleAddWater} />
+        <WaterTracker waterMl={optimisticWaterMl} onAdd={handleAddWater} />
         <WorkoutCompleteSummary
           programLabel={initialData.programLabel}
           completedAt={workout.completed_at}
@@ -674,7 +692,7 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
 
   return (
     <div className="space-y-5">
-      <WaterTracker waterMl={waterMl} onAdd={handleAddWater} />
+      <WaterTracker waterMl={optimisticWaterMl} onAdd={handleAddWater} />
 
       <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
         <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">
