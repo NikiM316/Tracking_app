@@ -3,7 +3,11 @@ import type {
   FinanceTables,
   FinanceTransactionType,
 } from "./finance-types";
-import type { MonkEnums, MonkTables } from "./monk-types";
+import type {
+  CatchUpMissedDaysPayload,
+  MonkEnums,
+  MonkTables,
+} from "./monk-types";
 
 export * from "./finance-types";
 export * from "./monk-types";
@@ -117,6 +121,12 @@ export type Database = {
           type: FinanceTransactionType;
           net: number;
         }[];
+      };
+      catch_up_missed_days_tx: {
+        Args: {
+          payload: CatchUpMissedDaysPayload;
+        };
+        Returns: undefined;
       };
     };
     Enums: FinanceEnums & MonkEnums & {

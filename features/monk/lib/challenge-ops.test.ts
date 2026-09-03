@@ -192,9 +192,9 @@ describe("catchUpMissedDays", () => {
     expect(result.status).toBe("failed");
     expect(result.ended_on).toBe("2026-01-01");
     expect(result.ended_day_number).toBe(1);
-    expect(fake.db.queryLog.filter((q) => q === "insert monk_days")).toHaveLength(
-      1,
-    );
+    expect(
+      fake.db.queryLog.filter((q) => q === "rpc catch_up_missed_days_tx"),
+    ).toHaveLength(1);
   });
 
   it("walks every missed day when the rule is not on_any_fail", async () => {
@@ -230,8 +230,11 @@ describe("catchUpMissedDays", () => {
     expect(fake.db.queryLog.filter((q) => q === "select monk_days")).toHaveLength(
       1,
     );
+    expect(
+      fake.db.queryLog.filter((q) => q === "rpc catch_up_missed_days_tx"),
+    ).toHaveLength(1);
     expect(fake.db.queryLog.filter((q) => q === "insert monk_days")).toHaveLength(
-      1,
+      0,
     );
     expect(fake.db.queryLog.filter((q) => q === "update monk_days")).toHaveLength(
       0,
@@ -352,11 +355,14 @@ describe("catchUpMissedDays", () => {
       }),
     ]);
     expect(fake.db.queryLog.filter((q) => q === "insert monk_days")).toHaveLength(
-      1,
+      0,
     );
     expect(fake.db.queryLog.filter((q) => q === "update monk_days")).toHaveLength(
-      1,
+      0,
     );
+    expect(
+      fake.db.queryLog.filter((q) => q === "rpc catch_up_missed_days_tx"),
+    ).toHaveLength(1);
   });
 
   it("does not create later missed days when an open day fails the attempt", async () => {
@@ -380,6 +386,9 @@ describe("catchUpMissedDays", () => {
     expect(fake.db.queryLog.filter((q) => q === "insert monk_days")).toHaveLength(
       0,
     );
+    expect(
+      fake.db.queryLog.filter((q) => q === "rpc catch_up_missed_days_tx"),
+    ).toHaveLength(1);
   });
 
   it("does not catch up past the final day of the challenge", async () => {
@@ -473,6 +482,23 @@ describe("catchUpMissedDays", () => {
       is_mandatory_snapshot: true,
       is_completed: false,
     });
+  });
+
+  it("rolls back missed-day inserts when a later write in the rpc fails", async () => {
+    const challenge = begin(
+      makeChallenge({
+        started_on: "2026-01-01",
+        reset_rule: "consecutive_fails",
+      }),
+    );
+    fake.db.failRpcAfterMissingDays = true;
+
+    await expect(
+      catchUpMissedDays(fake.client, USER_ID, challenge, "2026-01-03"),
+    ).rejects.toThrow(/Failed to catch up missed days/);
+
+    expect(fake.db.rows("monk_days")).toHaveLength(0);
+    expect(fake.db.rows("monk_habit_logs")).toHaveLength(0);
   });
 });
 

@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type {
+  CatchUpMissedDaysPayload,
   MonkChallenge,
   MonkDay,
   MonkFinalizationSource,
@@ -709,56 +710,50 @@ export async function catchUpMissedDays(
   const finalizedOpenIds = new Set(
     openFinalizations.map((item) => item.day.id),
   );
-  const habitLogsToInsert = pendingOpenHabitLogs.filter((row) =>
-    finalizedOpenIds.has(row.day_id),
-  );
+  const habitLogsToInsert: CatchUpMissedDaysPayload["habit_logs"] =
+    pendingOpenHabitLogs.filter((row) => finalizedOpenIds.has(row.day_id));
 
-  if (missingDays.length > 0) {
-    const [habits, insertResult] = await Promise.all([
-      habitsLoaded
-        ? Promise.resolve(activeHabits)
-        : listHabits(supabase, userId, true),
-      supabase.from("monk_days").insert(missingDays).select("*"),
-    ]);
-    activeHabits = habits;
+  const missingDaysToInsert: CatchUpMissedDaysPayload["missing_days"] =
+    missingDays.map((day) => ({
+      ...day,
+      id: crypto.randomUUID(),
+    }));
 
-    const { data: insertedDays, error: insertError } = insertResult;
-    if (insertError) {
-      if (!isUniqueViolation(insertError)) {
-        throw new Error(`Failed to catch up missed days: ${insertError.message}`);
-      }
-    } else {
-      for (const day of insertedDays ?? []) {
-        for (const habit of activeHabits) {
-          habitLogsToInsert.push(habitLogInsertRow(day.id, habit));
-        }
-      }
+  if (missingDaysToInsert.length > 0 && !habitsLoaded) {
+    activeHabits = await listHabits(supabase, userId, true);
+  }
+
+  for (const day of missingDaysToInsert) {
+    for (const habit of activeHabits) {
+      habitLogsToInsert.push(habitLogInsertRow(day.id, habit));
     }
   }
 
-  const writes: Promise<unknown>[] = [insertHabitLogs(supabase, habitLogsToInsert)];
+  const dayUpdates: CatchUpMissedDaysPayload["day_updates"] =
+    openFinalizations.map(({ day, passed }) => ({
+      id: day.id,
+      status: passed ? "passed" : "failed",
+      finalized_at: now,
+      finalization_source: "automatic",
+    }));
 
-  for (const { day, passed } of openFinalizations) {
-    writes.push(
-      (async () => {
-        const { error } = await supabase
-          .from("monk_days")
-          .update({
-            status: passed ? "passed" : "failed",
-            finalized_at: now,
-            finalization_source: "automatic",
-          })
-          .eq("id", day.id)
-          .eq("status", "in_progress");
+  if (
+    missingDaysToInsert.length > 0 ||
+    habitLogsToInsert.length > 0 ||
+    dayUpdates.length > 0
+  ) {
+    const { error } = await supabase.rpc("catch_up_missed_days_tx", {
+      payload: {
+        missing_days: missingDaysToInsert,
+        habit_logs: habitLogsToInsert,
+        day_updates: dayUpdates,
+      },
+    });
 
-        if (error) {
-          throw new Error(`Failed to finalize day: ${error.message}`);
-        }
-      })(),
-    );
+    if (error) {
+      throw new Error(`Failed to catch up missed days: ${error.message}`);
+    }
   }
-
-  await Promise.all(writes);
 
   if (close) {
     return closeChallenge(supabase, challenge, close);

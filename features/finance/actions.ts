@@ -30,6 +30,7 @@ import {
 import {
   calendarMonthBefore,
   currentCalendarMonth,
+  isValidStrictCalendarDate,
   type CalendarMonth,
   type DateRange,
 } from "@/features/finance/lib/months";
@@ -231,10 +232,18 @@ function resolveCategoryName(
   return "Uncategorized";
 }
 
-function assertDateRange(range: DateRange): DateRange {
-  if (!ISO_DATE_PATTERN.test(range.startDate) || !ISO_DATE_PATTERN.test(range.endDate)) {
-    throw new Error("Date range must use YYYY-MM-DD dates.");
+function assertIsoCalendarDate(dateString: string, label: string): void {
+  if (!ISO_DATE_PATTERN.test(dateString)) {
+    throw new Error(`${label} must use YYYY-MM-DD dates.`);
   }
+  if (!isValidStrictCalendarDate(dateString)) {
+    throw new Error(`${label} is not a valid calendar date: ${dateString}.`);
+  }
+}
+
+function assertDateRange(range: DateRange): DateRange {
+  assertIsoCalendarDate(range.startDate, "Date range start");
+  assertIsoCalendarDate(range.endDate, "Date range end");
   if (range.startDate > range.endDate) {
     throw new Error("Date range start must be on or before the end.");
   }
@@ -356,6 +365,9 @@ export async function fetchHistoricalMonth(
   const trimmed = oldestLoadedDate.trim();
   if (!ISO_DATE_PATTERN.test(trimmed)) {
     throw new Error("Date must be YYYY-MM-DD.");
+  }
+  if (!isValidStrictCalendarDate(trimmed)) {
+    throw new Error(`${trimmed} is not a valid calendar date.`);
   }
 
   return getMonthActivity(calendarMonthBefore(trimmed));

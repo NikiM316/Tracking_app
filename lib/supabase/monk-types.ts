@@ -100,6 +100,35 @@ export type MonkHabitLog = {
   updated_at: string;
 };
 
+/** JSON payload for `catch_up_missed_days_tx`. */
+export type CatchUpMissedDaysPayload = {
+  missing_days: Array<{
+    id: string;
+    challenge_id: string;
+    user_id: string;
+    date: string;
+    day_number: number;
+    status: "failed";
+    finalized_at: string;
+    finalization_source: "system_missed";
+    social_media_limit_minutes: number;
+    gaming_limit_minutes: number;
+  }>;
+  habit_logs: Array<{
+    day_id: string;
+    habit_id: string;
+    is_mandatory_snapshot: boolean;
+    target_value_snapshot: number | null;
+    target_unit_snapshot: string | null;
+  }>;
+  day_updates: Array<{
+    id: string;
+    status: "passed" | "failed";
+    finalized_at: string;
+    finalization_source: "automatic";
+  }>;
+};
+
 export type MonkTask = {
   id: string;
   day_id: string;

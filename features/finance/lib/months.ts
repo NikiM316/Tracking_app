@@ -6,6 +6,29 @@ import { ISO_DATE_PATTERN } from "@/features/finance/utils";
  */
 export const FINANCE_TIMEZONE = "Europe/Sofia";
 
+/**
+ * True only when `dateString` is a real `YYYY-MM-DD` calendar day.
+ * A regex match is not enough: `new Date(2026, 1, 31)` silently becomes
+ * 3 March, so we round-trip year/month/day against the local Date.
+ */
+export function isValidStrictCalendarDate(dateString: string): boolean {
+  if (!ISO_DATE_PATTERN.test(dateString)) {
+    return false;
+  }
+
+  const [yearString, monthString, dayString] = dateString.split("-");
+  const year = Number(yearString);
+  const month = Number(monthString);
+  const day = Number(dayString);
+  const date = new Date(year, month - 1, day);
+
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+}
+
 export type DateRange = {
   startDate: string;
   endDate: string;
@@ -41,6 +64,9 @@ export function calendarMonth(year: number, month: number): CalendarMonth {
 export function calendarMonthContaining(isoDate: string): CalendarMonth {
   if (!ISO_DATE_PATTERN.test(isoDate)) {
     throw new Error(`Date must be YYYY-MM-DD: ${isoDate}`);
+  }
+  if (!isValidStrictCalendarDate(isoDate)) {
+    throw new Error(`Date is not a valid calendar day: ${isoDate}`);
   }
 
   const [year, month] = isoDate.split("-").map(Number);

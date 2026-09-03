@@ -7,6 +7,7 @@ import {
   currentCalendarMonth,
   FINANCE_TIMEZONE,
   formatMonthLabel,
+  isValidStrictCalendarDate,
   previousCalendarMonth,
   todayInFinanceTimezone,
 } from "./months";
@@ -40,6 +41,27 @@ describe("calendarMonth", () => {
   });
 });
 
+describe("isValidStrictCalendarDate", () => {
+  it("accepts a real calendar day", () => {
+    expect(isValidStrictCalendarDate("2026-02-28")).toBe(true);
+    expect(isValidStrictCalendarDate("2026-09-03")).toBe(true);
+    expect(isValidStrictCalendarDate("2028-02-29")).toBe(true);
+  });
+
+  it("rejects a nonexistent day that JS Date would roll over", () => {
+    expect(isValidStrictCalendarDate("2026-02-31")).toBe(false);
+    expect(isValidStrictCalendarDate("2026-02-29")).toBe(false);
+    expect(isValidStrictCalendarDate("2026-04-31")).toBe(false);
+    expect(isValidStrictCalendarDate("2026-13-01")).toBe(false);
+    expect(isValidStrictCalendarDate("2026-00-10")).toBe(false);
+  });
+
+  it("rejects a non-ISO string even when Date would parse it", () => {
+    expect(isValidStrictCalendarDate("2026-9-3")).toBe(false);
+    expect(isValidStrictCalendarDate("")).toBe(false);
+  });
+});
+
 describe("calendarMonthContaining", () => {
   it("returns the month that owns the date", () => {
     expect(calendarMonthContaining("2026-09-03")).toEqual(calendarMonth(2026, 9));
@@ -49,6 +71,12 @@ describe("calendarMonthContaining", () => {
 
   it("rejects a non-ISO date", () => {
     expect(() => calendarMonthContaining("2026-9-3")).toThrow(/YYYY-MM-DD/);
+  });
+
+  it("rejects a nonexistent calendar day instead of rolling it into the next month", () => {
+    expect(() => calendarMonthContaining("2026-02-31")).toThrow(
+      /not a valid calendar day/,
+    );
   });
 });
 
