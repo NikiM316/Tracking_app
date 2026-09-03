@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   deriveAccountBalances,
+  movementsFromCashflowAggregates,
   netMovementByAccount,
   nextHoldingPosition,
   type BalanceMovementInput,
@@ -125,6 +126,30 @@ describe("netMovementByAccount", () => {
     );
 
     expect(movements.get(CHECKING)).toBe(-50);
+  });
+});
+
+describe("movementsFromCashflowAggregates", () => {
+  it("turns grouped income and expense sums into signed movements", () => {
+    const movements = movementsFromCashflowAggregates([
+      { account_id: CHECKING, type: "income", net: 2500 },
+      { account_id: CHECKING, type: "expense", net: "400.00" },
+      { account_id: SAVINGS, type: "income", net: 100 },
+    ]);
+
+    expect(netMovementByAccount(movements).get(CHECKING)).toBe(2100);
+    expect(netMovementByAccount(movements).get(SAVINGS)).toBe(100);
+  });
+
+  it("ignores non-cashflow types, zeros, and non-numeric totals", () => {
+    expect(
+      movementsFromCashflowAggregates([
+        { account_id: CHECKING, type: "transfer", net: 300 },
+        { account_id: CHECKING, type: "income", net: 0 },
+        { account_id: CHECKING, type: "expense", net: null },
+        { account_id: CHECKING, type: "income", net: "nope" },
+      ]),
+    ).toEqual([]);
   });
 });
 

@@ -1,21 +1,21 @@
 import { CashBalancesSection } from "@/features/finance/components/dashboard/CashBalancesSection";
+import { MonthlyActivityFeed } from "@/features/finance/components/dashboard/MonthlyActivityFeed";
 import { NetWorthSummary } from "@/features/finance/components/dashboard/NetWorthSummary";
 import { PortfolioHoldingsSection } from "@/features/finance/components/dashboard/PortfolioHoldingsSection";
-import { RecentTransactionsSection } from "@/features/finance/components/dashboard/RecentTransactionsSection";
 import {
   getAccounts,
   getCategories,
+  getMonthActivity,
   getPortfolioHoldings,
   getPortfolios,
-  getRecentTransactions,
 } from "@/features/finance/actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function FinanceHomePage() {
-  const [accounts, transactions, holdings, portfolios, categories] = await Promise.all([
+  const [accounts, activity, holdings, portfolios, categories] = await Promise.all([
     getAccounts(),
-    getRecentTransactions(),
+    getMonthActivity(),
     getPortfolioHoldings(),
     getPortfolios(),
     getCategories(),
@@ -25,7 +25,7 @@ export default async function FinanceHomePage() {
     <section className="space-y-4">
       <NetWorthSummary accounts={accounts} holdings={holdings} />
       <CashBalancesSection accounts={accounts} />
-      <RecentTransactionsSection transactions={transactions} categories={categories} />
+      <MonthlyActivityFeed initialActivity={activity} categories={categories} />
       <PortfolioHoldingsSection
         holdings={holdings}
         portfolioCount={portfolios.length}

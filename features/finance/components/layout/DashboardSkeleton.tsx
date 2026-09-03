@@ -37,18 +37,19 @@ export function DashboardSkeleton() {
       </section>
 
       <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
-        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-3 w-28" />
+        <Skeleton className="mt-2 h-6 w-32" />
+        <Skeleton className="mt-1 h-9 w-36" />
         <Skeleton className="mt-2 h-4 w-full" />
         <div className="mt-4 flex gap-2">
           <Skeleton className="h-12 flex-1 rounded-xl" />
           <Skeleton className="h-12 flex-1 rounded-xl" />
         </div>
-        <div className="mt-4 space-y-2">
-          <Skeleton className="h-14 w-full rounded-xl" />
-          <Skeleton className="h-14 w-full rounded-xl" />
-          <Skeleton className="h-14 w-full rounded-xl" />
-        </div>
       </section>
+      <Skeleton className="h-16 w-full rounded-2xl" />
+      <Skeleton className="h-16 w-full rounded-2xl" />
+      <Skeleton className="h-16 w-full rounded-2xl" />
+      <Skeleton className="h-12 w-full rounded-xl" />
 
       <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
         <div className="flex items-baseline justify-between gap-3">

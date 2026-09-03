@@ -192,6 +192,9 @@ describe("catchUpMissedDays", () => {
     expect(result.status).toBe("failed");
     expect(result.ended_on).toBe("2026-01-01");
     expect(result.ended_day_number).toBe(1);
+    expect(fake.db.queryLog.filter((q) => q === "insert monk_days")).toHaveLength(
+      1,
+    );
   });
 
   it("walks every missed day when the rule is not on_any_fail", async () => {
@@ -220,7 +223,19 @@ describe("catchUpMissedDays", () => {
     ]);
     expect(days.map((day) => day.day_number)).toEqual([1, 2, 3, 4, 5]);
     expect(days.every((day) => day.status === "failed")).toBe(true);
+    expect(days.every((day) => day.finalization_source === "system_missed")).toBe(
+      true,
+    );
     expect(result.status).toBe("active");
+    expect(fake.db.queryLog.filter((q) => q === "select monk_days")).toHaveLength(
+      1,
+    );
+    expect(fake.db.queryLog.filter((q) => q === "insert monk_days")).toHaveLength(
+      1,
+    );
+    expect(fake.db.queryLog.filter((q) => q === "update monk_days")).toHaveLength(
+      0,
+    );
   });
 
   it("assigns day numbers relative to the start date, not the catch-up window", async () => {
@@ -302,6 +317,69 @@ describe("catchUpMissedDays", () => {
       status: "failed",
       finalization_source: "automatic",
     });
+  });
+
+  it("finalizes an open day and bulk-inserts later missing dates", async () => {
+    const challenge = begin(
+      makeChallenge({
+        started_on: "2026-01-01",
+        reset_rule: "consecutive_fails",
+      }),
+      { monk_days: [makeDay({ id: "day-open", date: "2026-01-01", day_number: 1 })] },
+    );
+
+    await catchUpMissedDays(fake.client, USER_ID, challenge, "2026-01-04");
+
+    const days = [...fake.db.rows("monk_days")].sort((left, right) =>
+      String(left.date).localeCompare(String(right.date)),
+    );
+    expect(days).toHaveLength(3);
+    expect(days[0]).toMatchObject({
+      id: "day-open",
+      status: "failed",
+      finalization_source: "automatic",
+    });
+    expect(days.slice(1)).toEqual([
+      expect.objectContaining({
+        date: "2026-01-02",
+        status: "failed",
+        finalization_source: "system_missed",
+      }),
+      expect.objectContaining({
+        date: "2026-01-03",
+        status: "failed",
+        finalization_source: "system_missed",
+      }),
+    ]);
+    expect(fake.db.queryLog.filter((q) => q === "insert monk_days")).toHaveLength(
+      1,
+    );
+    expect(fake.db.queryLog.filter((q) => q === "update monk_days")).toHaveLength(
+      1,
+    );
+  });
+
+  it("does not create later missed days when an open day fails the attempt", async () => {
+    const challenge = begin(
+      makeChallenge({
+        started_on: "2026-01-01",
+        reset_rule: "on_any_fail",
+      }),
+      { monk_days: [makeDay({ id: "day-open", date: "2026-01-01", day_number: 1 })] },
+    );
+
+    const result = await catchUpMissedDays(
+      fake.client,
+      USER_ID,
+      challenge,
+      "2026-01-04",
+    );
+
+    expect(fake.db.rows("monk_days")).toHaveLength(1);
+    expect(result.status).toBe("failed");
+    expect(fake.db.queryLog.filter((q) => q === "insert monk_days")).toHaveLength(
+      0,
+    );
   });
 
   it("does not catch up past the final day of the challenge", async () => {

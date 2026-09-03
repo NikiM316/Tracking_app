@@ -3,15 +3,11 @@
 import { useState } from "react";
 
 import type { RecentTransaction } from "@/features/finance/types";
+import type { CategoryTransactionGroup } from "@/features/finance/lib/activity";
 import { EditTransactionModal } from "@/features/finance/components/dashboard/EditTransactionModal";
 import type { FinanceCategory } from "@/lib/supabase/finance-types";
 
-export type CategoryTransactionGroup = {
-  key: string;
-  label: string;
-  totalsByCurrency: { currency: string; total: number }[];
-  transactions: RecentTransaction[];
-};
+export type { CategoryTransactionGroup };
 
 type CategoryTransactionsAccordionProps = {
   groups: CategoryTransactionGroup[];

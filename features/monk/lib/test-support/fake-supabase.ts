@@ -11,6 +11,8 @@
 
 type Row = Record<string, unknown>;
 type Filter = { column: string; value: unknown };
+type RangeFilter = { column: string; op: "gte" | "lte"; value: unknown };
+type InFilter = { column: string; values: unknown[] };
 type Order = { column: string; ascending: boolean };
 
 export type FakeSupabaseResult = {
@@ -79,6 +81,8 @@ class FakeQuery implements PromiseLike<FakeSupabaseResult> {
   private operation: "select" | "insert" | "update" = "select";
   private payload: Row[] = [];
   private filters: Filter[] = [];
+  private rangeFilters: RangeFilter[] = [];
+  private inFilters: InFilter[] = [];
   private orders: Order[] = [];
   private wantsCount = false;
   private headOnly = false;
@@ -122,15 +126,47 @@ class FakeQuery implements PromiseLike<FakeSupabaseResult> {
     return this;
   }
 
+  gte(column: string, value: unknown): this {
+    this.rangeFilters.push({ column, op: "gte", value });
+    return this;
+  }
+
+  lte(column: string, value: unknown): this {
+    this.rangeFilters.push({ column, op: "lte", value });
+    return this;
+  }
+
+  in(column: string, values: unknown[]): this {
+    this.inFilters.push({ column, values });
+    return this;
+  }
+
   order(column: string, options?: { ascending?: boolean }): this {
     this.orders.push({ column, ascending: options?.ascending ?? true });
     return this;
   }
 
   private matching(): Row[] {
-    const rows = this.db.rows(this.table).filter((row) =>
-      this.filters.every((filter) => row[filter.column] === filter.value),
-    );
+    const rows = this.db.rows(this.table).filter((row) => {
+      if (!this.filters.every((filter) => row[filter.column] === filter.value)) {
+        return false;
+      }
+
+      for (const filter of this.rangeFilters) {
+        const left = row[filter.column] as string | number;
+        const right = filter.value as string | number;
+        if (filter.op === "gte" && left < right) return false;
+        if (filter.op === "lte" && left > right) return false;
+      }
+
+      for (const filter of this.inFilters) {
+        if (!filter.values.includes(row[filter.column])) {
+          return false;
+        }
+      }
+
+      return true;
+    });
 
     for (const order of [...this.orders].reverse()) {
       rows.sort((a, b) => {

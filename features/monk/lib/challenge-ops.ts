@@ -14,7 +14,6 @@ import type {
 import { PLACEHOLDER_USER_ID } from "@/lib/utils/placeholder-user";
 import {
   DEFAULT_GAMING_LIMIT_MINUTES,
-  finalizationSourceForMissingDay,
   isDayLocked,
   scoreDay,
   shouldResetOnFail,
@@ -167,6 +166,27 @@ export async function listDaysForChallenge(
   return data ?? [];
 }
 
+async function listDaysInDateRange(
+  supabase: SupabaseClient,
+  challengeId: string,
+  startDate: string,
+  endDate: string,
+): Promise<MonkDay[]> {
+  const { data, error } = await supabase
+    .from("monk_days")
+    .select("*")
+    .eq("challenge_id", challengeId)
+    .gte("date", startDate)
+    .lte("date", endDate)
+    .order("day_number", { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to load challenge days: ${error.message}`);
+  }
+
+  return data ?? [];
+}
+
 export async function listHabitLogs(
   supabase: SupabaseClient,
   dayId: string,
@@ -175,6 +195,26 @@ export async function listHabitLogs(
     .from("monk_habit_logs")
     .select("*")
     .eq("day_id", dayId);
+
+  if (error) {
+    throw new Error(`Failed to load habit logs: ${error.message}`);
+  }
+
+  return data ?? [];
+}
+
+async function listHabitLogsForDays(
+  supabase: SupabaseClient,
+  dayIds: string[],
+): Promise<MonkHabitLog[]> {
+  if (dayIds.length === 0) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("monk_habit_logs")
+    .select("*")
+    .in("day_id", dayIds);
 
   if (error) {
     throw new Error(`Failed to load habit logs: ${error.message}`);
@@ -199,6 +239,39 @@ export async function listTasks(
   }
 
   return data ?? [];
+}
+
+async function listTasksForDays(
+  supabase: SupabaseClient,
+  dayIds: string[],
+): Promise<MonkTask[]> {
+  if (dayIds.length === 0) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("monk_tasks")
+    .select("*")
+    .in("day_id", dayIds);
+
+  if (error) {
+    throw new Error(`Failed to load tasks: ${error.message}`);
+  }
+
+  return data ?? [];
+}
+
+function groupByDayId<T extends { day_id: string }>(rows: T[]): Map<string, T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const row of rows) {
+    const list = grouped.get(row.day_id);
+    if (list) {
+      list.push(row);
+    } else {
+      grouped.set(row.day_id, [row]);
+    }
+  }
+  return grouped;
 }
 
 async function countPassedDays(
@@ -268,22 +341,20 @@ export async function closeChallenge(
   return data;
 }
 
-async function insertHabitLogsForDay(
-  supabase: SupabaseClient,
-  dayId: string,
-  habits: MonkHabit[],
-  existingHabitIds: Set<string>,
-): Promise<void> {
-  const rows = habits
-    .filter((habit) => !existingHabitIds.has(habit.id))
-    .map((habit) => ({
-      day_id: dayId,
-      habit_id: habit.id,
-      is_mandatory_snapshot: habit.is_mandatory,
-      target_value_snapshot: habit.target_value,
-      target_unit_snapshot: habit.target_unit,
-    }));
+function habitLogInsertRow(dayId: string, habit: MonkHabit) {
+  return {
+    day_id: dayId,
+    habit_id: habit.id,
+    is_mandatory_snapshot: habit.is_mandatory,
+    target_value_snapshot: habit.target_value,
+    target_unit_snapshot: habit.target_unit,
+  };
+}
 
+async function insertHabitLogs(
+  supabase: SupabaseClient,
+  rows: ReturnType<typeof habitLogInsertRow>[],
+): Promise<void> {
   if (rows.length === 0) {
     return;
   }
@@ -293,6 +364,20 @@ async function insertHabitLogsForDay(
   if (error && !isUniqueViolation(error)) {
     throw new Error(`Failed to snapshot habits: ${error.message}`);
   }
+}
+
+async function insertHabitLogsForDay(
+  supabase: SupabaseClient,
+  dayId: string,
+  habits: MonkHabit[],
+  existingHabitIds: Set<string>,
+): Promise<void> {
+  await insertHabitLogs(
+    supabase,
+    habits
+      .filter((habit) => !existingHabitIds.has(habit.id))
+      .map((habit) => habitLogInsertRow(dayId, habit)),
+  );
 }
 
 function isUniqueViolation(error: { code?: string } | null): boolean {
@@ -452,6 +537,29 @@ export async function finalizeDayAndMaybeReset(
   return { day: updatedDay, challenge, passed: result.passed };
 }
 
+type MissedDayInsert = {
+  challenge_id: string;
+  user_id: string;
+  date: string;
+  day_number: number;
+  status: "failed";
+  finalized_at: string;
+  finalization_source: "system_missed";
+  social_media_limit_minutes: number;
+  gaming_limit_minutes: number;
+};
+
+type OpenDayFinalization = {
+  day: MonkDay;
+  passed: boolean;
+};
+
+type CatchUpClose = {
+  status: "failed" | "completed";
+  endedOn: string;
+  endedDayNumber: number;
+};
+
 export async function catchUpMissedDays(
   supabase: SupabaseClient,
   userId: string,
@@ -470,36 +578,193 @@ export async function catchUpMissedDays(
     return challenge;
   }
 
-  let current = challenge;
+  const dates = eachDateInclusive(challenge.started_on, catchUpUntil);
+  const existingDays = await listDaysInDateRange(
+    supabase,
+    challenge.id,
+    challenge.started_on,
+    catchUpUntil,
+  );
+  const existingByDate = new Map(existingDays.map((day) => [day.date, day]));
+  const openDays = dates
+    .map((date) => existingByDate.get(date))
+    .filter((day): day is MonkDay => day != null && day.status === "in_progress");
+  const hasMissingDates = dates.some((date) => !existingByDate.has(date));
 
-  for (const date of eachDateInclusive(challenge.started_on, catchUpUntil)) {
-    if (current.status !== "active") {
+  if (!hasMissingDates && openDays.length === 0) {
+    return challenge;
+  }
+
+  const now = new Date().toISOString();
+  const pendingOpenHabitLogs: ReturnType<typeof habitLogInsertRow>[] = [];
+  const logsByDay = new Map<string, MonkHabitLog[]>();
+  const tasksByDay = new Map<string, MonkTask[]>();
+  let activeHabits: MonkHabit[] = [];
+  let habitsLoaded = false;
+
+  if (openDays.length > 0) {
+    const openIds = openDays.map((day) => day.id);
+    const [habits, logs, tasks] = await Promise.all([
+      listHabits(supabase, userId, true),
+      listHabitLogsForDays(supabase, openIds),
+      listTasksForDays(supabase, openIds),
+    ]);
+    activeHabits = habits;
+    habitsLoaded = true;
+
+    for (const [dayId, dayLogs] of groupByDayId(logs)) {
+      logsByDay.set(dayId, dayLogs);
+    }
+    for (const [dayId, dayTasks] of groupByDayId(tasks)) {
+      tasksByDay.set(dayId, dayTasks);
+    }
+
+    for (const day of openDays) {
+      const dayLogs = logsByDay.get(day.id) ?? [];
+      logsByDay.set(day.id, dayLogs);
+      const existingHabitIds = new Set(dayLogs.map((log) => log.habit_id));
+      for (const habit of habits) {
+        if (existingHabitIds.has(habit.id)) {
+          continue;
+        }
+        const row = habitLogInsertRow(day.id, habit);
+        pendingOpenHabitLogs.push(row);
+        dayLogs.push({
+          ...row,
+          id: "",
+          is_completed: false,
+          completed_at: null,
+          created_at: now,
+          updated_at: now,
+        });
+      }
+    }
+  }
+
+  const missingDays: MissedDayInsert[] = [];
+  const openFinalizations: OpenDayFinalization[] = [];
+  let close: CatchUpClose | null = null;
+
+  for (const date of dates) {
+    if (close) {
       break;
     }
 
-    const dayNumber = dayNumberForDate(current.started_on, date);
-    const existing = await getDayByDate(supabase, current.id, date);
-    const hadExistingRow = existing !== null;
-    const day = await getOrCreateDayWithHabits(supabase, {
-      challenge: current,
-      userId,
-      date,
-      dayNumber,
-    });
+    const dayNumber = dayNumberForDate(challenge.started_on, date);
+    const existing = existingByDate.get(date);
 
-    if (day.status !== "in_progress") {
+    if (existing) {
+      if (existing.status !== "in_progress") {
+        continue;
+      }
+
+      const result = scoreDay({
+        habits: logsByDay.get(existing.id) ?? [],
+        tasks: tasksByDay.get(existing.id) ?? [],
+        socialMediaLimitMinutes: existing.social_media_limit_minutes,
+        socialMediaActualMinutes: existing.social_media_actual_minutes,
+        gamingLimitMinutes: existing.gaming_limit_minutes,
+        gamingActualMinutes: existing.gaming_actual_minutes,
+        maxMandatoryFailuresAllowed: challenge.max_mandatory_failures_allowed,
+      });
+      openFinalizations.push({ day: existing, passed: result.passed });
+
+      if (!result.passed && shouldResetOnFail(challenge)) {
+        close = {
+          status: "failed",
+          endedOn: date,
+          endedDayNumber: dayNumber,
+        };
+      } else if (result.passed && dayNumber >= challenge.target_days) {
+        close = {
+          status: "completed",
+          endedOn: date,
+          endedDayNumber: dayNumber,
+        };
+      }
       continue;
     }
 
-    const finalized = await finalizeDayAndMaybeReset(supabase, {
-      day,
-      challenge: current,
-      source: finalizationSourceForMissingDay(hadExistingRow),
+    missingDays.push({
+      challenge_id: challenge.id,
+      user_id: userId,
+      date,
+      day_number: dayNumber,
+      status: "failed",
+      finalized_at: now,
+      finalization_source: "system_missed",
+      social_media_limit_minutes: challenge.social_media_limit_minutes,
+      gaming_limit_minutes: DEFAULT_GAMING_LIMIT_MINUTES,
     });
-    current = finalized.challenge;
+
+    if (shouldResetOnFail(challenge)) {
+      close = {
+        status: "failed",
+        endedOn: date,
+        endedDayNumber: dayNumber,
+      };
+    }
   }
 
-  return current;
+  const finalizedOpenIds = new Set(
+    openFinalizations.map((item) => item.day.id),
+  );
+  const habitLogsToInsert = pendingOpenHabitLogs.filter((row) =>
+    finalizedOpenIds.has(row.day_id),
+  );
+
+  if (missingDays.length > 0) {
+    const [habits, insertResult] = await Promise.all([
+      habitsLoaded
+        ? Promise.resolve(activeHabits)
+        : listHabits(supabase, userId, true),
+      supabase.from("monk_days").insert(missingDays).select("*"),
+    ]);
+    activeHabits = habits;
+
+    const { data: insertedDays, error: insertError } = insertResult;
+    if (insertError) {
+      if (!isUniqueViolation(insertError)) {
+        throw new Error(`Failed to catch up missed days: ${insertError.message}`);
+      }
+    } else {
+      for (const day of insertedDays ?? []) {
+        for (const habit of activeHabits) {
+          habitLogsToInsert.push(habitLogInsertRow(day.id, habit));
+        }
+      }
+    }
+  }
+
+  const writes: Promise<unknown>[] = [insertHabitLogs(supabase, habitLogsToInsert)];
+
+  for (const { day, passed } of openFinalizations) {
+    writes.push(
+      (async () => {
+        const { error } = await supabase
+          .from("monk_days")
+          .update({
+            status: passed ? "passed" : "failed",
+            finalized_at: now,
+            finalization_source: "automatic",
+          })
+          .eq("id", day.id)
+          .eq("status", "in_progress");
+
+        if (error) {
+          throw new Error(`Failed to finalize day: ${error.message}`);
+        }
+      })(),
+    );
+  }
+
+  await Promise.all(writes);
+
+  if (close) {
+    return closeChallenge(supabase, challenge, close);
+  }
+
+  return challenge;
 }
 
 export async function ensureTodayDay(
