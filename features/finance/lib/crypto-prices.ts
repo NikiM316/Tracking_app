@@ -20,7 +20,7 @@ export function isEthereumHolding(symbol: string, name?: string): boolean {
 export async function getLiveCryptoPrices(): Promise<LiveCryptoPrices> {
   try {
     const response = await fetch(COINGECKO_ETH_EUR_URL, {
-      cache: "no-store",
+      next: { revalidate: 300 },
       headers: { Accept: "application/json" },
     });
 

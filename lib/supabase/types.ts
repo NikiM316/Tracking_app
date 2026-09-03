@@ -1,5 +1,13 @@
-import type { FinanceEnums, FinanceTables } from "./finance-types";
-import type { MonkEnums, MonkTables } from "./monk-types";
+import type {
+  FinanceEnums,
+  FinanceTables,
+  FinanceTransactionType,
+} from "./finance-types";
+import type {
+  CatchUpMissedDaysPayload,
+  MonkEnums,
+  MonkTables,
+} from "./monk-types";
 
 export * from "./finance-types";
 export * from "./monk-types";
@@ -103,6 +111,22 @@ export type Database = {
           p_amount: number;
         };
         Returns: number;
+      };
+      finance_cashflow_totals: {
+        Args: {
+          p_user_id: string;
+        };
+        Returns: {
+          account_id: string;
+          type: FinanceTransactionType;
+          net: number;
+        }[];
+      };
+      catch_up_missed_days_tx: {
+        Args: {
+          payload: CatchUpMissedDaysPayload;
+        };
+        Returns: undefined;
       };
     };
     Enums: FinanceEnums & MonkEnums & {

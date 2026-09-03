@@ -11,6 +11,8 @@
 
 type Row = Record<string, unknown>;
 type Filter = { column: string; value: unknown };
+type RangeFilter = { column: string; op: "gte" | "lte"; value: unknown };
+type InFilter = { column: string; values: unknown[] };
 type Order = { column: string; ascending: boolean };
 
 export type FakeSupabaseResult = {
@@ -51,6 +53,12 @@ export class FakeSupabase {
   /** Every query issued, in order — useful for asserting query counts. */
   readonly queryLog: string[] = [];
 
+  /**
+   * When true, the next `catch_up_missed_days_tx` call inserts missing days
+   * then throws so tests can assert the in-memory transaction rolled back.
+   */
+  failRpcAfterMissingDays = false;
+
   private idCounter = 0;
 
   constructor(seed: Record<string, Row[]> = {}) {
@@ -73,12 +81,122 @@ export class FakeSupabase {
   from(table: string): FakeQuery {
     return new FakeQuery(this, table);
   }
+
+  private cloneTables(): Record<string, Row[]> {
+    const copy: Record<string, Row[]> = {};
+    for (const [table, rows] of Object.entries(this.tables)) {
+      copy[table] = rows.map((row) => ({ ...row }));
+    }
+    return copy;
+  }
+
+  private restoreTables(snapshot: Record<string, Row[]>): void {
+    for (const key of Object.keys(this.tables)) {
+      delete this.tables[key];
+    }
+    for (const [table, rows] of Object.entries(snapshot)) {
+      this.tables[table] = rows.map((row) => ({ ...row }));
+    }
+  }
+
+  async rpc(
+    name: string,
+    args?: {
+      payload?: {
+        missing_days?: Row[];
+        habit_logs?: Row[];
+        day_updates?: Row[];
+      };
+    },
+  ): Promise<FakeSupabaseResult> {
+    this.queryLog.push(`rpc ${name}`);
+
+    if (name !== "catch_up_missed_days_tx") {
+      throw new Error(`unimplemented rpc: ${name}`);
+    }
+
+    const snapshot = this.cloneTables();
+    const payload = args?.payload ?? {};
+    const missingDays = payload.missing_days ?? [];
+    const habitLogs = payload.habit_logs ?? [];
+    const dayUpdates = payload.day_updates ?? [];
+
+    try {
+      for (const row of missingDays) {
+        const days = this.rows("monk_days");
+        const duplicate = days.some(
+          (day) => day.challenge_id === row.challenge_id && day.date === row.date,
+        );
+        if (duplicate) {
+          continue;
+        }
+        days.push({
+          id: this.nextId("monk_days"),
+          created_at: new Date().toISOString(),
+          ...TABLE_DEFAULTS.monk_days,
+          ...row,
+        });
+      }
+
+      if (this.failRpcAfterMissingDays) {
+        this.failRpcAfterMissingDays = false;
+        throw new Error("forced failure after missing days");
+      }
+
+      for (const row of habitLogs) {
+        const dayExists = this.rows("monk_days").some((day) => day.id === row.day_id);
+        if (!dayExists) {
+          continue;
+        }
+        const logs = this.rows("monk_habit_logs");
+        const duplicate = logs.some(
+          (log) => log.day_id === row.day_id && log.habit_id === row.habit_id,
+        );
+        if (duplicate) {
+          continue;
+        }
+        logs.push({
+          id: this.nextId("monk_habit_logs"),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          ...TABLE_DEFAULTS.monk_habit_logs,
+          ...row,
+        });
+      }
+
+      for (const patch of dayUpdates) {
+        const day = this.rows("monk_days").find(
+          (row) => row.id === patch.id && row.status === "in_progress",
+        );
+        if (!day) {
+          continue;
+        }
+        Object.assign(day, {
+          status: patch.status,
+          finalized_at: patch.finalized_at,
+          finalization_source: patch.finalization_source,
+        });
+      }
+
+      return { data: null, error: null };
+    } catch (error) {
+      this.restoreTables(snapshot);
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : "rpc failed",
+        },
+      };
+    }
+  }
 }
 
 class FakeQuery implements PromiseLike<FakeSupabaseResult> {
   private operation: "select" | "insert" | "update" = "select";
   private payload: Row[] = [];
   private filters: Filter[] = [];
+  private rangeFilters: RangeFilter[] = [];
+  private inFilters: InFilter[] = [];
   private orders: Order[] = [];
   private wantsCount = false;
   private headOnly = false;
@@ -122,15 +240,47 @@ class FakeQuery implements PromiseLike<FakeSupabaseResult> {
     return this;
   }
 
+  gte(column: string, value: unknown): this {
+    this.rangeFilters.push({ column, op: "gte", value });
+    return this;
+  }
+
+  lte(column: string, value: unknown): this {
+    this.rangeFilters.push({ column, op: "lte", value });
+    return this;
+  }
+
+  in(column: string, values: unknown[]): this {
+    this.inFilters.push({ column, values });
+    return this;
+  }
+
   order(column: string, options?: { ascending?: boolean }): this {
     this.orders.push({ column, ascending: options?.ascending ?? true });
     return this;
   }
 
   private matching(): Row[] {
-    const rows = this.db.rows(this.table).filter((row) =>
-      this.filters.every((filter) => row[filter.column] === filter.value),
-    );
+    const rows = this.db.rows(this.table).filter((row) => {
+      if (!this.filters.every((filter) => row[filter.column] === filter.value)) {
+        return false;
+      }
+
+      for (const filter of this.rangeFilters) {
+        const left = row[filter.column] as string | number;
+        const right = filter.value as string | number;
+        if (filter.op === "gte" && left < right) return false;
+        if (filter.op === "lte" && left > right) return false;
+      }
+
+      for (const filter of this.inFilters) {
+        if (!filter.values.includes(row[filter.column])) {
+          return false;
+        }
+      }
+
+      return true;
+    });
 
     for (const order of [...this.orders].reverse()) {
       rows.sort((a, b) => {

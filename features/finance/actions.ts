@@ -15,13 +15,25 @@ import type {
   UpdateTransactionData,
 } from "@/features/finance/types";
 import {
+  buildMonthActivity,
+  type MonthActivity,
+} from "@/features/finance/lib/activity";
+import {
   deriveAccountBalances,
+  movementsFromCashflowAggregates,
   nextHoldingPosition,
 } from "@/features/finance/lib/balances";
 import {
   getLiveCryptoPrices as fetchLiveCryptoPrices,
   isEthereumHolding,
 } from "@/features/finance/lib/crypto-prices";
+import {
+  calendarMonthBefore,
+  currentCalendarMonth,
+  isValidStrictCalendarDate,
+  type CalendarMonth,
+  type DateRange,
+} from "@/features/finance/lib/months";
 import {
   ISO_DATE_PATTERN,
   parseCategoryId,
@@ -65,6 +77,9 @@ export async function getLiveCryptoPrices() {
  * Fetches every account for the current user along with its derived balance
  * (opening_balance plus the signed sum of finance_transactions), since
  * balances are never stored directly on finance_accounts.
+ *
+ * Income/expense are summed in Postgres; only transfer rows are loaded so
+ * linked-pair handling can still run in `deriveAccountBalances`.
  */
 export async function getAccounts(): Promise<AccountWithBalance[]> {
   const supabase = createServerSupabaseClient();
@@ -84,20 +99,35 @@ export async function getAccounts(): Promise<AccountWithBalance[]> {
     return [];
   }
 
-  const { data: transactions, error: transactionsError } = await supabase
-    .from("finance_transactions")
-    .select(
-      "id, account_id, type, amount, transfer_account_id, transfer_transaction_id, created_at",
-    )
-    .eq("user_id", userId);
+  const [
+    { data: cashflowTotals, error: cashflowError },
+    { data: transfers, error: transfersError },
+  ] = await Promise.all([
+    supabase.rpc("finance_cashflow_totals", { p_user_id: userId }),
+    supabase
+      .from("finance_transactions")
+      .select(
+        "id, account_id, type, amount, transfer_account_id, transfer_transaction_id, created_at",
+      )
+      .eq("user_id", userId)
+      .eq("type", "transfer"),
+  ]);
 
-  if (transactionsError) {
+  if (cashflowError) {
     throw new Error(
-      `Failed to fetch transactions for balances: ${transactionsError.message}`,
+      `Failed to fetch cashflow totals for balances: ${cashflowError.message}`,
+    );
+  }
+  if (transfersError) {
+    throw new Error(
+      `Failed to fetch transfers for balances: ${transfersError.message}`,
     );
   }
 
-  return deriveAccountBalances(accounts, transactions ?? []);
+  return deriveAccountBalances(accounts, [
+    ...movementsFromCashflowAggregates(cashflowTotals ?? []),
+    ...(transfers ?? []),
+  ]);
 }
 
 /**
@@ -202,18 +232,37 @@ function resolveCategoryName(
   return "Uncategorized";
 }
 
+function assertIsoCalendarDate(dateString: string, label: string): void {
+  if (!ISO_DATE_PATTERN.test(dateString)) {
+    throw new Error(`${label} must use YYYY-MM-DD dates.`);
+  }
+  if (!isValidStrictCalendarDate(dateString)) {
+    throw new Error(`${label} is not a valid calendar date: ${dateString}.`);
+  }
+}
+
+function assertDateRange(range: DateRange): DateRange {
+  assertIsoCalendarDate(range.startDate, "Date range start");
+  assertIsoCalendarDate(range.endDate, "Date range end");
+  if (range.startDate > range.endDate) {
+    throw new Error("Date range start must be on or before the end.");
+  }
+  return range;
+}
+
 /**
- * Fetches cashflow transactions for the current user with a left join onto
- * categories and accounts so orphaned `category_id` values still return a row
- * (displayed as "Uncategorized") instead of dropping the transaction.
+ * Fetches cashflow transactions in `[startDate, endDate]` (inclusive) with a
+ * left join onto categories and accounts so orphaned `category_id` values
+ * still return a row (displayed as "Uncategorized").
  */
-export async function getRecentTransactions(
-  limit?: number,
+export async function getTransactionsForRange(
+  range: DateRange,
 ): Promise<RecentTransaction[]> {
+  const { startDate, endDate } = assertDateRange(range);
   const supabase = createServerSupabaseClient();
   const userId = getPlaceholderUserId();
 
-  let joinedQuery = supabase
+  const joinedQuery = supabase
     .from("finance_transactions")
     .select(
       `
@@ -224,12 +273,10 @@ export async function getRecentTransactions(
     `,
     )
     .eq("user_id", userId)
+    .gte("date", startDate)
+    .lte("date", endDate)
     .order("date", { ascending: false })
     .order("created_at", { ascending: false });
-
-  if (typeof limit === "number") {
-    joinedQuery = joinedQuery.limit(limit);
-  }
 
   const [
     { data: joinedRows, error: joinedError },
@@ -255,18 +302,14 @@ export async function getRecentTransactions(
   let rows: FinanceTransaction[] = (joinedRows as unknown as FinanceTransaction[] | null) ?? [];
 
   if (joinedError || !joinedRows) {
-    let transactionsQuery = supabase
+    const { data: transactions, error: transactionsError } = await supabase
       .from("finance_transactions")
       .select("*")
       .eq("user_id", userId)
+      .gte("date", startDate)
+      .lte("date", endDate)
       .order("date", { ascending: false })
       .order("created_at", { ascending: false });
-
-    if (typeof limit === "number") {
-      transactionsQuery = transactionsQuery.limit(limit);
-    }
-
-    const { data: transactions, error: transactionsError } = await transactionsQuery;
     if (transactionsError) {
       throw new Error(`Failed to fetch transactions: ${transactionsError.message}`);
     }
@@ -299,6 +342,35 @@ export async function getRecentTransactions(
           : null),
     };
   });
+}
+
+/**
+ * Transactions, total spent, and category breakdown for one calendar month.
+ * Totals are derived from the month's rows rather than a second table scan.
+ */
+export async function getMonthActivity(
+  month: CalendarMonth = currentCalendarMonth(),
+): Promise<MonthActivity> {
+  const transactions = await getTransactionsForRange(month);
+  return buildMonthActivity(month, transactions);
+}
+
+/**
+ * Loads the calendar month before the one that contains `oldestLoadedDate`.
+ * The client passes the start date of the oldest month already on screen.
+ */
+export async function fetchHistoricalMonth(
+  oldestLoadedDate: string,
+): Promise<MonthActivity> {
+  const trimmed = oldestLoadedDate.trim();
+  if (!ISO_DATE_PATTERN.test(trimmed)) {
+    throw new Error("Date must be YYYY-MM-DD.");
+  }
+  if (!isValidStrictCalendarDate(trimmed)) {
+    throw new Error(`${trimmed} is not a valid calendar date.`);
+  }
+
+  return getMonthActivity(calendarMonthBefore(trimmed));
 }
 
 /**

@@ -18,6 +18,46 @@ export type BalanceMovementInput = {
   created_at?: string;
 };
 
+/**
+ * One grouped SUM() row from PostgREST (`account_id, type, net:amount.sum()`).
+ * Income/expense can be reduced to a single synthetic movement per account.
+ */
+export type CashflowAggregateRow = {
+  account_id: string;
+  type: string;
+  net: number | string | null;
+};
+
+/**
+ * Turns aggregated income/expense totals into the same movement shape as
+ * individual rows so `deriveAccountBalances` can stay the single source of
+ * the sign convention.
+ */
+export function movementsFromCashflowAggregates(
+  aggregates: readonly CashflowAggregateRow[],
+): BalanceMovementInput[] {
+  const movements: BalanceMovementInput[] = [];
+
+  for (const row of aggregates) {
+    if (row.type !== "income" && row.type !== "expense") {
+      continue;
+    }
+
+    const amount = Number(row.net);
+    if (!Number.isFinite(amount) || amount === 0) {
+      continue;
+    }
+
+    movements.push({
+      account_id: row.account_id,
+      type: row.type,
+      amount,
+    });
+  }
+
+  return movements;
+}
+
 function transferPairKey(id: string, counterpartId: string): string {
   return id < counterpartId ? `${id}:${counterpartId}` : `${counterpartId}:${id}`;
 }
