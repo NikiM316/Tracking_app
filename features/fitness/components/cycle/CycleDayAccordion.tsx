@@ -1,7 +1,3 @@
-"use client";
-
-import { useState } from "react";
-
 import type { CycleDayOverview } from "@/features/fitness/actions/cycle";
 
 type CycleDayAccordionProps = {
@@ -13,31 +9,20 @@ export function CycleDayAccordion({
   days,
   currentCycleDay,
 }: CycleDayAccordionProps) {
-  const [expandedDay, setExpandedDay] = useState<number | null>(null);
-
-  function toggleDay(day: number) {
-    setExpandedDay((current) => (current === day ? null : day));
-  }
-
   return (
     <div className="space-y-3">
       {days.map((day) => {
-        const isExpanded = expandedDay === day.day;
         const isToday = day.day === currentCycleDay;
 
         return (
-          <section
+          <details
             key={day.day}
-            className={`overflow-hidden rounded-2xl border bg-zinc-900/60 ${
+            name="cycle-days"
+            className={`overflow-hidden rounded-2xl border bg-zinc-900/60 open:[&_svg]:rotate-180 ${
               isToday ? "border-emerald-500/40" : "border-zinc-800"
             }`}
           >
-            <button
-              type="button"
-              aria-expanded={isExpanded}
-              onClick={() => toggleDay(day.day)}
-              className="flex min-h-14 w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-zinc-900"
-            >
+            <summary className="flex min-h-14 w-full cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-zinc-900 [&::-webkit-details-marker]:hidden">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
                   Day {day.day}
@@ -56,9 +41,7 @@ export function CycleDayAccordion({
                 </span>
                 <svg
                   aria-hidden="true"
-                  className={`h-5 w-5 text-zinc-400 transition-transform ${
-                    isExpanded ? "rotate-180" : ""
-                  }`}
+                  className="h-5 w-5 text-zinc-400 transition-transform"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth={1.75}
@@ -71,27 +54,25 @@ export function CycleDayAccordion({
                   />
                 </svg>
               </div>
-            </button>
+            </summary>
 
-            {isExpanded ? (
-              <div className="border-t border-zinc-800 px-5 py-4">
-                {day.exercises.length === 0 ? (
-                  <p className="text-sm text-zinc-500">Rest day — no exercises scheduled.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {day.exercises.map((exercise) => (
-                      <li
-                        key={exercise.slug}
-                        className="rounded-xl border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-zinc-200"
-                      >
-                        {exercise.name}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ) : null}
-          </section>
+            <div className="border-t border-zinc-800 px-5 py-4">
+              {day.exercises.length === 0 ? (
+                <p className="text-sm text-zinc-500">Rest day — no exercises scheduled.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {day.exercises.map((exercise) => (
+                    <li
+                      key={exercise.slug}
+                      className="rounded-xl border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-zinc-200"
+                    >
+                      {exercise.name}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </details>
         );
       })}
     </div>

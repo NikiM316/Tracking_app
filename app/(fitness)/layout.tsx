@@ -8,13 +8,11 @@ export default async function AppLayout({
   children: React.ReactNode;
 }>) {
   let cycleDay = 1;
-  let workoutId: string | null = null;
   let headerLabel = "Hybrid Cycle";
 
   try {
     const todaysWorkout = await getTodaysWorkout();
     cycleDay = todaysWorkout.cycle_day;
-    workoutId = todaysWorkout.id;
     headerLabel = getProgramDay(cycleDay)?.label ?? "Hybrid Cycle";
   } catch (error) {
     // Keep the gym shell (header + nav) up if a transient fetch still fails
@@ -25,7 +23,6 @@ export default async function AppLayout({
   return (
     <AppShell
       cycleDay={cycleDay}
-      workoutId={workoutId}
       headerLabel={headerLabel}
       headerSubtitle="14-day hybrid fitness cycle"
     >

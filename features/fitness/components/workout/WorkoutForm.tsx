@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { CycleDaySelector } from "@/features/fitness/components/workout/CycleDaySelector";
 import { WaterTracker } from "@/features/fitness/components/workout/WaterTracker";
 import type { TodayWorkoutData } from "@/features/fitness/actions/workout";
 
@@ -67,6 +68,10 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
 
   return (
     <div className="space-y-5">
+      {workout?.id ? (
+        <CycleDaySelector workoutId={workout.id} cycleDay={initialData.cycleDay} />
+      ) : null}
+
       <WaterTracker waterMl={water.optimisticWaterMl} onAdd={water.handleAddWater} />
 
       {isRestDay ? (

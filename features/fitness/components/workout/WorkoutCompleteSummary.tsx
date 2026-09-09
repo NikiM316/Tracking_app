@@ -1,5 +1,3 @@
-"use client";
-
 import { format, parseISO } from "date-fns";
 
 import type { LocalSet } from "@/features/fitness/components/workout/SetRow";
