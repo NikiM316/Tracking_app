@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 
 import { Button } from "@/features/core/components/Button";
-import { fetchHistoricalMonth } from "@/features/finance/actions";
+import { fetchHistoricalMonth } from "@/features/finance/actions/transactions";
 import { MonthlyActivitySection } from "@/features/finance/components/dashboard/MonthlyActivitySection";
 import type { MonthActivity } from "@/features/finance/lib/activity";
 import type { FinanceCategory } from "@/lib/supabase/finance-types";

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 
 import { Button } from "@/features/core/components/Button";
-import { bulkInsertTransactions } from "@/features/finance/actions";
+import { bulkInsertTransactions } from "@/features/finance/actions/transactions";
 import { parseCsvRows } from "@/features/finance/lib/csv";
 import type {
   AccountWithBalance,

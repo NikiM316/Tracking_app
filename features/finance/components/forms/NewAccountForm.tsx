@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { Button } from "@/features/core/components/Button";
-import { createAccount } from "@/features/finance/actions";
+import { createAccount } from "@/features/finance/actions/accounts";
 import { DecimalField } from "@/features/finance/components/forms/DecimalField";
 import { parseDecimal } from "@/features/finance/utils";
 import type { FinanceAccountType } from "@/lib/supabase/finance-types";
