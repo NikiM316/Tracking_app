@@ -97,28 +97,34 @@ export function useWorkoutNotes({
     setNoteJustSavedByExercise((current) => ({ ...current, [exerciseId]: false }));
 
     (async () => {
-      const result = await upsertExerciseNote({
-        workoutId,
-        exerciseId,
-        note,
-      });
+      try {
+        const result = await upsertExerciseNote({
+          workoutId,
+          exerciseId,
+          note,
+        });
 
-      setNoteSavingByExercise((current) => ({ ...current, [exerciseId]: false }));
+        if (!result.success) {
+          setErrorMessage(result.error);
+          return;
+        }
 
-      if (!result.success) {
-        setErrorMessage(result.error);
-        return;
+        setNoteJustSavedByExercise((current) => ({ ...current, [exerciseId]: true }));
+
+        if (noteFlashTimers.current[exerciseId]) {
+          clearTimeout(noteFlashTimers.current[exerciseId]);
+        }
+        noteFlashTimers.current[exerciseId] = setTimeout(() => {
+          delete noteFlashTimers.current[exerciseId];
+          setNoteJustSavedByExercise((current) => ({ ...current, [exerciseId]: false }));
+        }, SAVE_FLASH_MS);
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to save note.",
+        );
+      } finally {
+        setNoteSavingByExercise((current) => ({ ...current, [exerciseId]: false }));
       }
-
-      setNoteJustSavedByExercise((current) => ({ ...current, [exerciseId]: true }));
-
-      if (noteFlashTimers.current[exerciseId]) {
-        clearTimeout(noteFlashTimers.current[exerciseId]);
-      }
-      noteFlashTimers.current[exerciseId] = setTimeout(() => {
-        delete noteFlashTimers.current[exerciseId];
-        setNoteJustSavedByExercise((current) => ({ ...current, [exerciseId]: false }));
-      }, SAVE_FLASH_MS);
     })();
   }
 

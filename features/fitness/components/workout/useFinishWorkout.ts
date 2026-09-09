@@ -10,6 +10,7 @@ type UseFinishWorkoutOptions = {
   setWorkout: (workout: Workout) => void;
   syncWaterFromWorkout: (workout: Workout) => void;
   setErrorMessage: (value: string | null) => void;
+  flush: () => Promise<void>;
 };
 
 export function useFinishWorkout({
@@ -17,18 +18,19 @@ export function useFinishWorkout({
   setWorkout,
   syncWaterFromWorkout,
   setErrorMessage,
+  flush,
 }: UseFinishWorkoutOptions) {
   const [isFinishing, setIsFinishing] = useState(false);
 
-  function handleFinishWorkout() {
+  async function handleFinishWorkout() {
     if (!workoutId) return;
 
     setErrorMessage(null);
     setIsFinishing(true);
 
-    (async () => {
+    try {
+      await flush();
       const result = await finishWorkout(workoutId);
-      setIsFinishing(false);
 
       if (result.error || !result.workout) {
         setErrorMessage(result.error ?? "Failed to finish workout.");
@@ -37,7 +39,15 @@ export function useFinishWorkout({
 
       setWorkout(result.workout);
       syncWaterFromWorkout(result.workout);
-    })();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to finish workout.",
+      );
+    } finally {
+      setIsFinishing(false);
+    }
   }
 
   return {

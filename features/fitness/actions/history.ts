@@ -6,7 +6,7 @@ import type { Exercise, Set as DbSet, Workout } from "@/lib/supabase/types";
 import { PLACEHOLDER_USER_ID } from "@/lib/utils/placeholder-user";
 
 function getPlaceholderUserId(): string {
-  return process.env.PLACEHOLDER_USER_ID ?? PLACEHOLDER_USER_ID;
+  return process.env.PLACEHOLDER_USER_ID || PLACEHOLDER_USER_ID;
 }
 
 export type HistoryExerciseEntry = {

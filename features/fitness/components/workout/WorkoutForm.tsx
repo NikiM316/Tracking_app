@@ -58,6 +58,7 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
     setWorkout,
     syncWaterFromWorkout: water.syncFromWorkout,
     setErrorMessage,
+    flush: sets.flush,
   });
 
   const canLogSets = Boolean(workout?.id);

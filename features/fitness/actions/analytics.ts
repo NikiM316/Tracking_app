@@ -8,7 +8,7 @@ import { PLACEHOLDER_USER_ID } from "@/lib/utils/placeholder-user";
 const REST_CYCLE_DAYS = new Set([4, 7, 11, 14]);
 
 function getPlaceholderUserId(): string {
-  return process.env.PLACEHOLDER_USER_ID ?? PLACEHOLDER_USER_ID;
+  return process.env.PLACEHOLDER_USER_ID || PLACEHOLDER_USER_ID;
 }
 
 function toDateString(date: Date): string {

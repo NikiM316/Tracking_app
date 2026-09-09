@@ -31,7 +31,7 @@ import {
 export type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
 
 export function getPlaceholderUserId(): string {
-  return process.env.PLACEHOLDER_USER_ID ?? PLACEHOLDER_USER_ID;
+  return process.env.PLACEHOLDER_USER_ID || PLACEHOLDER_USER_ID;
 }
 
 export function revalidateMonkPaths() {

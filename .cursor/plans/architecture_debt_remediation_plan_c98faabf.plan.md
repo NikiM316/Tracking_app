@@ -22,7 +22,7 @@ todos:
     status: completed
   - id: split-god-components
     content: "Phase 4: Split TodayChecklist.tsx, WorkoutForm.tsx, and features/finance/actions.ts into smaller files"
-    status: pending
+    status: completed
   - id: bundle-client-boundary
     content: "Phase 5: next/dynamic for recharts/papaparse/canvas-confetti, remove unnecessary use client, convert accordions to <details>, shrink BottomNav client leaves"
     status: pending

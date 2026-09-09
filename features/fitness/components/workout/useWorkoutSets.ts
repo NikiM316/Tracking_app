@@ -46,6 +46,11 @@ export function useWorkoutSets({
   const workoutIdRef = useRef<string | null>(workoutId ?? null);
   const restElapsedByPrecedingSetRef = useRef<Record<string, number>>({});
   const setsByExerciseRef = useRef(setsByExercise);
+  const inFlightWritesRef = useRef(new Set<Promise<void>>());
+  const writeChainByLocalIdRef = useRef<Record<string, Promise<void>>>({});
+  const handleSaveSetRef = useRef<
+    (exerciseId: string, localId: string, target: LocalSet) => void
+  >(() => {});
 
   const totalSets = useMemo(
     () => Object.values(setsByExercise).reduce((sum, sets) => sum + sets.length, 0),
@@ -86,14 +91,16 @@ export function useWorkoutSets({
             set.restSeconds,
           );
 
+          const liveSet = exerciseSets.find((item) => item.localId === set.localId);
+
           void upsertSet({
-            id: set.id,
+            id: liveSet?.id ?? set.id,
             workoutId: pendingWorkoutId,
             exerciseId,
             setCategory: set.set_category,
             weight: set.weight,
             reps: set.reps!,
-            setOrder: set.set_order,
+            setOrder: liveSet?.set_order ?? set.set_order,
             restSeconds,
           });
         }
@@ -107,10 +114,33 @@ export function useWorkoutSets({
     exerciseId: string,
     updater: (sets: LocalSet[]) => LocalSet[],
   ) {
-    setSetsByExercise((current) => ({
-      ...current,
-      [exerciseId]: updater(current[exerciseId] ?? []),
-    }));
+    const next = {
+      ...setsByExerciseRef.current,
+      [exerciseId]: updater(setsByExerciseRef.current[exerciseId] ?? []),
+    };
+    setsByExerciseRef.current = next;
+    setSetsByExercise(next);
+  }
+
+  function trackWrite(write: Promise<void>) {
+    inFlightWritesRef.current.add(write);
+    void write.finally(() => {
+      inFlightWritesRef.current.delete(write);
+    });
+    return write;
+  }
+
+  function enqueueWrite(localId: string, write: () => Promise<void>) {
+    const previous = writeChainByLocalIdRef.current[localId] ?? Promise.resolve();
+    const next = previous.then(write, write);
+    writeChainByLocalIdRef.current[localId] = next;
+    trackWrite(next);
+    void next.finally(() => {
+      if (writeChainByLocalIdRef.current[localId] === next) {
+        delete writeChainByLocalIdRef.current[localId];
+      }
+    });
+    return next;
   }
 
   function scheduleSetSave(exerciseId: string, localId: string, next: LocalSet) {
@@ -122,12 +152,12 @@ export function useWorkoutSets({
     setSaveTimers.current[localId] = setTimeout(() => {
       delete setSaveTimers.current[localId];
       delete pendingSetSaves.current[localId];
-      handleSaveSet(exerciseId, localId, next);
+      handleSaveSetRef.current(exerciseId, localId, next);
     }, SAVE_DEBOUNCE_MS);
   }
 
   function handleAddSet(exerciseId: string) {
-    const currentSets = setsByExercise[exerciseId] ?? [];
+    const currentSets = setsByExerciseRef.current[exerciseId] ?? [];
     const newSet = createEmptySet(currentSets.length + 1);
 
     updateExerciseSets(exerciseId, (sets) => [...sets, newSet]);
@@ -194,7 +224,7 @@ export function useWorkoutSets({
 
   function handleChangeSet(exerciseId: string, localId: string, next: LocalSet) {
     const exercise = exercises.find((item) => item.id === exerciseId);
-    const currentSets = setsByExercise[exerciseId] ?? [];
+    const currentSets = setsByExerciseRef.current[exerciseId] ?? [];
     const previous = currentSets.find((set) => set.localId === localId);
 
     // Manual edits to category take the set out of smart warm-up tracking.
@@ -209,7 +239,9 @@ export function useWorkoutSets({
     }
 
     const nextSets = currentSets.map((set) =>
-      set.localId === localId ? nextSet : set,
+      set.localId === localId
+        ? { ...nextSet, id: set.id ?? nextSet.id }
+        : set,
     );
 
     const becameTopSet =
@@ -232,80 +264,105 @@ export function useWorkoutSets({
 
   function handleSaveSet(exerciseId: string, localId: string, target: LocalSet) {
     const reps = target.reps;
-    if (!workoutId || reps == null || reps < 1) {
+    if (reps == null || reps < 1) {
+      return;
+    }
+    if (!workoutIdRef.current) {
       return;
     }
 
     setErrorMessage(null);
 
-    const exerciseSets = setsByExercise[exerciseId] ?? [];
-    const restSeconds = getRestSecondsForSet(
-      exerciseSets,
-      localId,
-      restElapsedByPrecedingSetRef.current,
-      target.restSeconds,
-    );
-
     updateExerciseSets(exerciseId, (sets) =>
       sets.map((set) =>
-        set.localId === localId ? { ...target, saving: true, justSaved: false } : set,
+        set.localId === localId
+          ? {
+              ...target,
+              id: set.id ?? target.id,
+              saving: true,
+              justSaved: false,
+            }
+          : set,
       ),
     );
 
-    (async () => {
-      const result = await upsertSet({
-        id: target.id,
-        workoutId,
-        exerciseId,
-        setCategory: target.set_category,
-        weight: target.weight,
-        reps,
-        setOrder: target.set_order,
-        restSeconds,
-      });
+    return enqueueWrite(localId, async () => {
+      const workoutId = workoutIdRef.current;
+      if (!workoutId) return;
 
-      if (result.error || !result.set) {
-        setErrorMessage(result.error ?? "Failed to save set.");
+      const exerciseSets = setsByExerciseRef.current[exerciseId] ?? [];
+      const liveSet = exerciseSets.find((set) => set.localId === localId);
+      if (!liveSet) return;
+
+      const restSeconds = getRestSecondsForSet(
+        exerciseSets,
+        localId,
+        restElapsedByPrecedingSetRef.current,
+        liveSet.restSeconds ?? target.restSeconds,
+      );
+
+      try {
+        const result = await upsertSet({
+          id: liveSet.id,
+          workoutId,
+          exerciseId,
+          setCategory: target.set_category,
+          weight: target.weight,
+          reps,
+          setOrder: liveSet.set_order,
+          restSeconds,
+        });
+
+        if (result.error || !result.set) {
+          setErrorMessage(result.error ?? "Failed to save set.");
+          return;
+        }
+
+        // Keep `localId` stable across saves so RestTimer / SetRow are not remounted
+        // when upsertSet assigns a DB id (that remount was resetting the rest timer).
+        updateExerciseSets(exerciseId, (sets) =>
+          sets.map((set) =>
+            set.localId === localId
+              ? {
+                  ...toLocalSet(result.set),
+                  localId,
+                  justSaved: true,
+                  isSmartWarmup: set.isSmartWarmup,
+                  noRecentWarmupData: set.noRecentWarmupData,
+                }
+              : set,
+          ),
+        );
+
+        if (setFlashTimers.current[localId]) {
+          clearTimeout(setFlashTimers.current[localId]);
+        }
+        setFlashTimers.current[localId] = setTimeout(() => {
+          delete setFlashTimers.current[localId];
+          updateExerciseSets(exerciseId, (sets) =>
+            sets.map((set) =>
+              set.localId === localId ? { ...set, justSaved: false } : set,
+            ),
+          );
+        }, SAVE_FLASH_MS);
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to save set.",
+        );
+      } finally {
         updateExerciseSets(exerciseId, (sets) =>
           sets.map((set) =>
             set.localId === localId ? { ...set, saving: false } : set,
           ),
         );
-        return;
       }
-
-      // Keep `localId` stable across saves so RestTimer / SetRow are not remounted
-      // when upsertSet assigns a DB id (that remount was resetting the rest timer).
-      updateExerciseSets(exerciseId, (sets) =>
-        sets.map((set) =>
-          set.localId === localId
-            ? {
-                ...toLocalSet(result.set),
-                localId,
-                justSaved: true,
-                isSmartWarmup: set.isSmartWarmup,
-                noRecentWarmupData: set.noRecentWarmupData,
-              }
-            : set,
-        ),
-      );
-
-      if (setFlashTimers.current[localId]) {
-        clearTimeout(setFlashTimers.current[localId]);
-      }
-      setFlashTimers.current[localId] = setTimeout(() => {
-        delete setFlashTimers.current[localId];
-        updateExerciseSets(exerciseId, (sets) =>
-          sets.map((set) =>
-            set.localId === localId ? { ...set, justSaved: false } : set,
-          ),
-        );
-      }, SAVE_FLASH_MS);
-    })();
+    });
   }
 
+  handleSaveSetRef.current = handleSaveSet;
+
   function handleDeleteSet(exerciseId: string, localId: string) {
-    const target = (setsByExercise[exerciseId] ?? []).find(
+    const target = (setsByExerciseRef.current[exerciseId] ?? []).find(
       (set) => set.localId === localId,
     );
 
@@ -336,25 +393,53 @@ export function useWorkoutSets({
       ),
     );
 
-    (async () => {
-      const result = await deleteSet(target.id!);
+    void enqueueWrite(localId, async () => {
+      try {
+        const liveSet = (setsByExerciseRef.current[exerciseId] ?? []).find(
+          (set) => set.localId === localId,
+        );
+        const setId = liveSet?.id ?? target.id;
+        if (!setId) return;
 
-      if (!result.success) {
-        setErrorMessage(result.error);
+        const result = await deleteSet(setId);
+
+        if (!result.success) {
+          setErrorMessage(result.error);
+          return;
+        }
+
+        updateExerciseSets(exerciseId, (sets) =>
+          sets
+            .filter((set) => set.localId !== localId)
+            .map((set, index) => ({ ...set, set_order: index + 1 })),
+        );
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to delete set.",
+        );
+      } finally {
         updateExerciseSets(exerciseId, (sets) =>
           sets.map((set) =>
             set.localId === localId ? { ...set, saving: false } : set,
           ),
         );
-        return;
       }
+    });
+  }
 
-      updateExerciseSets(exerciseId, (sets) =>
-        sets
-          .filter((set) => set.localId !== localId)
-          .map((set, index) => ({ ...set, set_order: index + 1 })),
-      );
-    })();
+  async function flush() {
+    const pending = Object.values(pendingSetSaves.current);
+    for (const timer of Object.values(setSaveTimers.current)) {
+      clearTimeout(timer);
+    }
+    setSaveTimers.current = {};
+    pendingSetSaves.current = {};
+
+    for (const { exerciseId, set } of pending) {
+      handleSaveSet(exerciseId, set.localId, set);
+    }
+
+    await Promise.all([...inFlightWritesRef.current]);
   }
 
   return {
@@ -364,5 +449,6 @@ export function useWorkoutSets({
     handleChangeSet,
     handleDeleteSet,
     handleRestElapsedChange,
+    flush,
   };
 }
