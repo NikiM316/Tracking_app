@@ -16,10 +16,10 @@ todos:
     status: completed
   - id: perf-streaming
     content: "Phase 2: Add loading.tsx + Suspense per route group, set staleTimes in next.config.ts, switch dev script off --webpack"
-    status: pending
+    status: completed
   - id: perf-queries
     content: "Phase 3: Collapse fitness history scans, add missing workouts/sets indexes, batch monk catchUpMissedDays, cache CoinGecko fetch + limit finance queries, memoize Supabase client, flatten retries"
-    status: pending
+    status: completed
   - id: split-god-components
     content: "Phase 4: Split TodayChecklist.tsx, WorkoutForm.tsx, and features/finance/actions.ts into smaller files"
     status: pending

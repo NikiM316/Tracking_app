@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { Button } from "@/features/core/components/Button";
-import { createPortfolio } from "@/features/finance/actions";
+import { createPortfolio } from "@/features/finance/actions/portfolios";
 
 const fieldClassName =
   "min-h-12 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-base text-zinc-50 outline-none focus:border-emerald-500";

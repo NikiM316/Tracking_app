@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 
 import { Button } from "@/features/core/components/Button";
-import { deleteTransaction, updateTransaction } from "@/features/finance/actions";
+import { deleteTransaction, updateTransaction } from "@/features/finance/actions/transactions";
 import { DateField } from "@/features/finance/components/forms/DateField";
 import { DecimalField } from "@/features/finance/components/forms/DecimalField";
 import { parseDecimal } from "@/features/finance/utils";
