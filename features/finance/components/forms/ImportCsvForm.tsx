@@ -1,6 +1,5 @@
 "use client";
 
-import Papa from "papaparse";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 
@@ -40,7 +39,7 @@ export function ImportCsvForm({ accounts }: ImportCsvFormProps) {
 
   const previewRows = useMemo(() => rows.slice(0, 5), [rows]);
 
-  function handleFile(file: File) {
+  async function handleFile(file: File) {
     if (!file.name.toLowerCase().endsWith(".csv")) {
       setParseError("Please upload a .csv file.");
       return;
@@ -52,28 +51,37 @@ export function ImportCsvForm({ accounts }: ImportCsvFormProps) {
     setIsParsing(true);
     setRows([]);
 
-    // header: false — Revolut's Consolidated Statement export has 100+ lines
-    // of account summaries and balances before the transaction table, so
-    // there's no single reliable header row. We instead read every line as a
-    // raw string[] and let parseCsvRows pick out the real transaction rows.
-    Papa.parse<string[]>(file, {
-      header: false,
-      skipEmptyLines: true,
-      complete: (results) => {
-        setIsParsing(false);
-        const parsedRows = parseCsvRows(results.data);
-        if (parsedRows.length === 0) {
-          setParseError(
-            "No transactions could be read. Make sure this is a Revolut Consolidated Statement export.",
-          );
-        }
-        setRows(parsedRows);
-      },
-      error: (error) => {
-        setIsParsing(false);
-        setParseError(error.message);
-      },
-    });
+    try {
+      const Papa = (await import("papaparse")).default;
+
+      // header: false — Revolut's Consolidated Statement export has 100+ lines
+      // of account summaries and balances before the transaction table, so
+      // there's no single reliable header row. We instead read every line as a
+      // raw string[] and let parseCsvRows pick out the real transaction rows.
+      Papa.parse<string[]>(file, {
+        header: false,
+        skipEmptyLines: true,
+        complete: (results) => {
+          setIsParsing(false);
+          const parsedRows = parseCsvRows(results.data);
+          if (parsedRows.length === 0) {
+            setParseError(
+              "No transactions could be read. Make sure this is a Revolut Consolidated Statement export.",
+            );
+          }
+          setRows(parsedRows);
+        },
+        error: (error) => {
+          setIsParsing(false);
+          setParseError(error.message);
+        },
+      });
+    } catch (error) {
+      setIsParsing(false);
+      setParseError(
+        error instanceof Error ? error.message : "Failed to load CSV parser.",
+      );
+    }
   }
 
   function handleDrop(event: React.DragEvent<HTMLDivElement>) {

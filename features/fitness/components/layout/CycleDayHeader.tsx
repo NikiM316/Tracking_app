@@ -1,18 +1,15 @@
 import { HomeLink } from "@/features/core/components/HomeLink";
-import { CycleDaySelector } from "@/features/fitness/components/workout/CycleDaySelector";
 
 type CycleDayHeaderProps = {
   cycleDay: number;
   label?: string;
   subtitle?: string;
-  workoutId?: string | null;
 };
 
 export function CycleDayHeader({
   cycleDay,
   label,
   subtitle,
-  workoutId,
 }: CycleDayHeaderProps) {
   return (
     <header
@@ -23,13 +20,9 @@ export function CycleDayHeader({
         <div className="flex items-start gap-2">
           <HomeLink />
           <div className="min-w-0 flex-1">
-            {workoutId ? (
-              <CycleDaySelector workoutId={workoutId} cycleDay={cycleDay} />
-            ) : (
-              <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">
-                Day {cycleDay} of 14
-              </p>
-            )}
+            <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">
+              Day {cycleDay} of 14
+            </p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-zinc-50">
               {label ?? "Hybrid Cycle"}
             </h1>

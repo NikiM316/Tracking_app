@@ -1,6 +1,5 @@
 "use client";
 
-import confetti from "canvas-confetti";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/features/core/components/Button";
@@ -22,35 +21,41 @@ type WaterTrackerProps = {
 
 const GOAL_TOAST_MS = 3200;
 
-function fireGoalConfetti() {
-  const defaults = {
-    spread: 70,
-    startVelocity: 38,
-    ticks: 90,
-    zIndex: 1000,
-    colors: ["#38bdf8", "#7dd3fc", "#e0f2fe", "#34d399", "#a7f3d0"],
-  };
+async function fireGoalConfetti() {
+  try {
+    const { default: confetti } = await import("canvas-confetti");
 
-  void confetti({
-    ...defaults,
-    particleCount: 90,
-    origin: { x: 0.5, y: 0.65 },
-  });
+    const defaults = {
+      spread: 70,
+      startVelocity: 38,
+      ticks: 90,
+      zIndex: 1000,
+      colors: ["#38bdf8", "#7dd3fc", "#e0f2fe", "#34d399", "#a7f3d0"],
+    };
 
-  window.setTimeout(() => {
     void confetti({
       ...defaults,
-      particleCount: 45,
-      angle: 60,
-      origin: { x: 0, y: 0.7 },
+      particleCount: 90,
+      origin: { x: 0.5, y: 0.65 },
     });
-    void confetti({
-      ...defaults,
-      particleCount: 45,
-      angle: 120,
-      origin: { x: 1, y: 0.7 },
-    });
-  }, 180);
+
+    window.setTimeout(() => {
+      void confetti({
+        ...defaults,
+        particleCount: 45,
+        angle: 60,
+        origin: { x: 0, y: 0.7 },
+      });
+      void confetti({
+        ...defaults,
+        particleCount: 45,
+        angle: 120,
+        origin: { x: 1, y: 0.7 },
+      });
+    }, 180);
+  } catch {
+    // Confetti is decorative; adding water should still succeed.
+  }
 }
 
 export function WaterTracker({
@@ -85,7 +90,7 @@ export function WaterTracker({
     if (previousMl >= goalMl || nextMl < goalMl) return;
 
     hasCelebratedGoalRef.current = true;
-    fireGoalConfetti();
+    void fireGoalConfetti();
     setShowGoalToast(true);
 
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);

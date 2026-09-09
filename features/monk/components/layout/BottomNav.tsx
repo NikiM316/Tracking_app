@@ -1,18 +1,17 @@
-"use client";
-
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { NavLink } from "@/features/core/components/NavLink";
 
 type NavItem = {
   href: string;
   label: string;
   icon: React.ReactNode;
+  exact?: boolean;
 };
 
 const navItems: NavItem[] = [
   {
     href: "/monk",
     label: "Today",
+    exact: true,
     icon: (
       <svg
         aria-hidden="true"
@@ -73,8 +72,6 @@ const navItems: NavItem[] = [
 ];
 
 export function BottomNav() {
-  const pathname = usePathname();
-
   return (
     <nav
       aria-label="Monk Mode navigation"
@@ -82,28 +79,12 @@ export function BottomNav() {
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="mx-auto flex w-full max-w-md">
-        {navItems.map((item) => {
-          const isActive =
-            item.href === "/monk"
-              ? pathname === "/monk"
-              : pathname === item.href || pathname.startsWith(`${item.href}/`);
-
-          return (
-            <Link
-              key={item.href}
-              aria-current={isActive ? "page" : undefined}
-              className={`flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors ${
-                isActive
-                  ? "text-emerald-400"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-              href={item.href}
-            >
-              {item.icon}
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+        {navItems.map((item) => (
+          <NavLink key={item.href} href={item.href} exact={item.exact}>
+            {item.icon}
+            <span>{item.label}</span>
+          </NavLink>
+        ))}
       </div>
     </nav>
   );

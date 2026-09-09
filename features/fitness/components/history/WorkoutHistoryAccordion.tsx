@@ -1,7 +1,3 @@
-"use client";
-
-import { useState } from "react";
-
 import type { HistoryWorkoutEntry } from "@/features/fitness/actions/history";
 import { formatRestDuration } from "@/lib/utils/format-rest";
 
@@ -39,31 +35,19 @@ function formatDate(dateStr: string): string {
 }
 
 export function WorkoutHistoryAccordion({ entries }: WorkoutHistoryAccordionProps) {
-  const [expandedId, setExpandedId] = useState<string | null>(
-    entries[0]?.workout.id ?? null,
-  );
-
-  function toggle(id: string) {
-    setExpandedId((current) => (current === id ? null : id));
-  }
-
   return (
     <div className="space-y-3">
-      {entries.map(({ workout, programLabel, exercises }) => {
-        const isExpanded = expandedId === workout.id;
+      {entries.map(({ workout, programLabel, exercises }, index) => {
         const totalSets = exercises.reduce((sum, entry) => sum + entry.sets.length, 0);
 
         return (
-          <section
+          <details
             key={workout.id}
-            className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/60"
+            name="workout-history"
+            {...(index === 0 ? { open: true } : {})}
+            className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/60 open:[&_svg]:rotate-180"
           >
-            <button
-              type="button"
-              aria-expanded={isExpanded}
-              onClick={() => toggle(workout.id)}
-              className="flex min-h-14 w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-zinc-900"
-            >
+            <summary className="flex min-h-14 w-full cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-zinc-900 [&::-webkit-details-marker]:hidden">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
                   Day {workout.cycle_day} · {formatDate(workout.date)}
@@ -78,9 +62,7 @@ export function WorkoutHistoryAccordion({ entries }: WorkoutHistoryAccordionProp
                 </span>
                 <svg
                   aria-hidden="true"
-                  className={`h-5 w-5 text-zinc-400 transition-transform ${
-                    isExpanded ? "rotate-180" : ""
-                  }`}
+                  className="h-5 w-5 text-zinc-400 transition-transform"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth={1.75}
@@ -93,52 +75,50 @@ export function WorkoutHistoryAccordion({ entries }: WorkoutHistoryAccordionProp
                   />
                 </svg>
               </div>
-            </button>
+            </summary>
 
-            {isExpanded ? (
-              <div className="space-y-3 border-t border-zinc-800 px-5 py-4">
-                {exercises.length === 0 ? (
-                  <p className="text-sm text-zinc-500">No sets logged.</p>
-                ) : (
-                  exercises.map(({ exercise, sets, note }) => (
-                    <div
-                      key={exercise.id}
-                      className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-4"
-                    >
-                      <p className="text-sm font-semibold text-zinc-200">
-                        {exercise.name}
+            <div className="space-y-3 border-t border-zinc-800 px-5 py-4">
+              {exercises.length === 0 ? (
+                <p className="text-sm text-zinc-500">No sets logged.</p>
+              ) : (
+                exercises.map(({ exercise, sets, note }) => (
+                  <div
+                    key={exercise.id}
+                    className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-4"
+                  >
+                    <p className="text-sm font-semibold text-zinc-200">
+                      {exercise.name}
+                    </p>
+                    <ul className="mt-2 space-y-1.5">
+                      {sets.map((set, setIndex) => (
+                        <li
+                          key={set.id}
+                          className="flex items-center justify-between text-sm"
+                        >
+                          <span className="text-zinc-500">
+                            Set {setIndex + 1} ·{" "}
+                            {setCategoryLabel[set.set_category] ?? set.set_category}
+                          </span>
+                          <span className="font-medium text-zinc-100">
+                            {set.weight_kg != null ? `${set.weight_kg} kg × ` : ""}
+                            {set.reps} reps
+                            {set.rest_seconds != null
+                              ? ` (${formatRestDuration(set.rest_seconds)} rest)`
+                              : ""}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    {note ? (
+                      <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                        {note}
                       </p>
-                      <ul className="mt-2 space-y-1.5">
-                        {sets.map((set, index) => (
-                          <li
-                            key={set.id}
-                            className="flex items-center justify-between text-sm"
-                          >
-                            <span className="text-zinc-500">
-                              Set {index + 1} ·{" "}
-                              {setCategoryLabel[set.set_category] ?? set.set_category}
-                            </span>
-                            <span className="font-medium text-zinc-100">
-                              {set.weight_kg != null ? `${set.weight_kg} kg × ` : ""}
-                              {set.reps} reps
-                              {set.rest_seconds != null
-                                ? ` (${formatRestDuration(set.rest_seconds)} rest)`
-                                : ""}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                      {note ? (
-                        <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                          {note}
-                        </p>
-                      ) : null}
-                    </div>
-                  ))
-                )}
-              </div>
-            ) : null}
-          </section>
+                    ) : null}
+                  </div>
+                ))
+              )}
+            </div>
+          </details>
         );
       })}
     </div>
