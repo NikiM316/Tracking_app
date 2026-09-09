@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cycle Tracker",
+  title: "Tracker",
   description: "14-day hybrid fitness cycle tracker",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
