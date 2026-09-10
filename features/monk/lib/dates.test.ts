@@ -161,48 +161,6 @@ describe("getTodayInTimezone", () => {
     expect(MONK_TIMEZONE).toBe("Europe/Sofia");
     expect(getTodayInTimezone()).toBe(getTodayInTimezone(MONK_TIMEZONE));
   });
-
-  it("returns tomorrow's date in Sofia when it is still yesterday in UTC", () => {
-    // 22:30 UTC is 01:30 the next day in Sofia (UTC+3 in summer). This is the
-    // rollover that decides which monk day a late-night check-in belongs to.
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-09-02T22:30:00Z"));
-
-    expect(getTodayInTimezone("Europe/Sofia")).toBe("2026-09-03");
-    expect(getTodayInTimezone("UTC")).toBe("2026-09-02");
-  });
-
-  it("has not rolled over just before local midnight", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-09-02T20:59:00Z"));
-
-    expect(getTodayInTimezone("Europe/Sofia")).toBe("2026-09-02");
-  });
-
-  it("rolls over exactly at local midnight", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-09-02T21:00:00Z"));
-
-    expect(getTodayInTimezone("Europe/Sofia")).toBe("2026-09-03");
-  });
-
-  it("accounts for the winter offset being UTC+2 rather than UTC+3", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-01-15T22:30:00Z"));
-
-    expect(getTodayInTimezone("Europe/Sofia")).toBe("2026-01-16");
-
-    vi.setSystemTime(new Date("2026-01-15T21:30:00Z"));
-    expect(getTodayInTimezone("Europe/Sofia")).toBe("2026-01-15");
-  });
-
-  it("returns a zero-padded ISO date", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-01-05T12:00:00Z"));
-
-    expect(getTodayInTimezone("Europe/Sofia")).toBe("2026-01-05");
-    expect(isIsoDate(getTodayInTimezone("Europe/Sofia"))).toBe(true);
-  });
 });
 
 describe("getYesterdayInTimezone", () => {

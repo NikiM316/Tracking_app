@@ -1,22 +1,10 @@
-const CYCLE_LENGTH = 14;
+export const CYCLE_LENGTH = 14;
 
-export function getCycleDay(
-  anchorDate: string,
-  today: Date = new Date(),
-): number {
-  const start = new Date(anchorDate);
-  start.setHours(0, 0, 0, 0);
+/** Next program day after a logged workout. Skipping a calendar day does not skip a cycle day. */
+export function nextCycleDay(previousCycleDay: number | null | undefined): number {
+  if (previousCycleDay == null) {
+    return 1;
+  }
 
-  const current = new Date(today);
-  current.setHours(0, 0, 0, 0);
-
-  const diffMs = current.getTime() - start.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const normalized = ((diffDays % CYCLE_LENGTH) + CYCLE_LENGTH) % CYCLE_LENGTH;
-
-  return normalized + 1;
-}
-
-export function getCycleAnchorDate(): string {
-  return process.env.CYCLE_START_DATE ?? "2026-08-04";
+  return (previousCycleDay % CYCLE_LENGTH) + 1;
 }

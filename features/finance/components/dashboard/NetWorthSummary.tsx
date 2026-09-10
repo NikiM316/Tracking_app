@@ -1,17 +1,10 @@
 import type { AccountWithBalance, HoldingWithDetails } from "@/features/finance/types";
+import { formatCurrency } from "@/features/finance/utils";
 
 type NetWorthSummaryProps = {
   accounts: AccountWithBalance[];
   holdings: HoldingWithDetails[];
 };
-
-function formatCurrency(amount: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
-  } catch {
-    return `${amount.toFixed(2)} ${currency}`;
-  }
-}
 
 export function NetWorthSummary({ accounts, holdings }: NetWorthSummaryProps) {
   const cashByCurrency = new Map<string, number>();

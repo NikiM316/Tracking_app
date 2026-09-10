@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getPlaceholderUserId } from "@/features/finance/lib/server";
+import { getPlaceholderUserId } from "@/lib/utils/placeholder-user";
 import {
   deriveAccountBalances,
   movementsFromCashflowAggregates,

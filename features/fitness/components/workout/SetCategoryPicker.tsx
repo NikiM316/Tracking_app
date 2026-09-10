@@ -1,6 +1,7 @@
 "use client";
 
 import { SegmentedControl } from "@/features/core/components/SegmentedControl";
+import { SET_CATEGORY_LABELS } from "@/features/fitness/lib/format";
 import type { SetCategory } from "@/lib/supabase/types";
 
 type SetCategoryPickerProps = {
@@ -10,14 +11,14 @@ type SetCategoryPickerProps = {
 };
 
 const BASE_OPTIONS: { value: SetCategory; label: string }[] = [
-  { value: "top_set", label: "Top set" },
-  { value: "working_set", label: "Normal" },
-  { value: "back_off", label: "Back-off" },
+  { value: "top_set", label: SET_CATEGORY_LABELS.top_set },
+  { value: "working_set", label: SET_CATEGORY_LABELS.working_set },
+  { value: "back_off", label: SET_CATEGORY_LABELS.back_off },
 ];
 
 const WARMUP_OPTION: { value: SetCategory; label: string } = {
   value: "warmup",
-  label: "Warm-up",
+  label: SET_CATEGORY_LABELS.warmup,
 };
 
 export function SetCategoryPicker({

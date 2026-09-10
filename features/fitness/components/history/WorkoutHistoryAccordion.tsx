@@ -1,38 +1,13 @@
 import type { HistoryWorkoutEntry } from "@/features/fitness/actions/history";
+import {
+  formatHistoryDate,
+  formatSetCategory,
+} from "@/features/fitness/lib/format";
 import { formatRestDuration } from "@/lib/utils/format-rest";
 
 type WorkoutHistoryAccordionProps = {
   entries: HistoryWorkoutEntry[];
 };
-
-const setCategoryLabel: Record<string, string> = {
-  warmup: "Warm-up",
-  top_set: "Top set",
-  working_set: "Normal",
-  back_off: "Back-off",
-};
-
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-] as const;
-
-function formatDate(dateStr: string): string {
-  // Manual format avoids SSR/client locale mismatches from toLocaleDateString.
-  const date = new Date(`${dateStr}T00:00:00`);
-  return `${WEEKDAYS[date.getDay()]}, ${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-}
 
 export function WorkoutHistoryAccordion({ entries }: WorkoutHistoryAccordionProps) {
   return (
@@ -50,7 +25,7 @@ export function WorkoutHistoryAccordion({ entries }: WorkoutHistoryAccordionProp
             <summary className="flex min-h-14 w-full cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-zinc-900 [&::-webkit-details-marker]:hidden">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
-                  Day {workout.cycle_day} · {formatDate(workout.date)}
+                  Day {workout.cycle_day} · {formatHistoryDate(workout.date)}
                 </p>
                 <h3 className="mt-1 text-base font-semibold text-zinc-50">
                   {programLabel}
@@ -97,7 +72,7 @@ export function WorkoutHistoryAccordion({ entries }: WorkoutHistoryAccordionProp
                         >
                           <span className="text-zinc-500">
                             Set {setIndex + 1} ·{" "}
-                            {setCategoryLabel[set.set_category] ?? set.set_category}
+                            {formatSetCategory(set.set_category)}
                           </span>
                           <span className="font-medium text-zinc-100">
                             {set.weight_kg != null ? `${set.weight_kg} kg × ` : ""}

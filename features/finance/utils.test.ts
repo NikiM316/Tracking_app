@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   DECIMAL_INPUT_PATTERN,
+  formatCurrency,
+  getTodayDateString,
   ISO_DATE_PATTERN,
   parseCategoryId,
   parseDecimal,
@@ -166,5 +168,28 @@ describe("DECIMAL_INPUT_PATTERN", () => {
     expect(pattern.test("12,50")).toBe(true);
     expect(pattern.test("12.5.0")).toBe(false);
     expect(pattern.test("abc")).toBe(false);
+  });
+});
+
+describe("formatCurrency", () => {
+  it("falls back to amount plus code when the currency is invalid", () => {
+    expect(formatCurrency(10, "NOTREAL")).toBe("10.00 NOTREAL");
+  });
+
+  it("formats a known ISO currency", () => {
+    expect(formatCurrency(12.5, "EUR")).toMatch(/12/);
+  });
+});
+
+describe("getTodayDateString", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("uses Europe/Sofia, not UTC", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-02T22:30:00Z"));
+
+    expect(getTodayDateString()).toBe("2026-09-03");
   });
 });

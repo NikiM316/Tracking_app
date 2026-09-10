@@ -1,6 +1,6 @@
 "use server";
 
-import { getPlaceholderUserId } from "@/features/finance/lib/server";
+import { getPlaceholderUserId } from "@/lib/utils/placeholder-user";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { FinanceCategory, FinanceCategoryKind } from "@/lib/supabase/finance-types";
 

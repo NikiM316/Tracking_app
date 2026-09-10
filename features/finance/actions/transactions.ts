@@ -14,7 +14,6 @@ import {
   type CalendarMonth,
   type DateRange,
 } from "@/features/finance/lib/months";
-import { getPlaceholderUserId, getTodayDateString } from "@/features/finance/lib/server";
 import type {
   BulkImportTransactionRow,
   CreateTransactionInput,
@@ -22,12 +21,14 @@ import type {
   UpdateTransactionData,
 } from "@/features/finance/types";
 import {
+  getTodayDateString,
   ISO_DATE_PATTERN,
   parseCategoryId,
   toFiniteNumber,
   UUID_PATTERN,
 } from "@/features/finance/utils";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getPlaceholderUserId } from "@/lib/utils/placeholder-user";
 import type {
   FinanceTransaction,
   FinanceTransactionType,

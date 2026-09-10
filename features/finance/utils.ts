@@ -1,4 +1,18 @@
+import { getTodayInTimezone } from "@/lib/utils/dates";
+
 export const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+export function formatCurrency(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
+  } catch {
+    return `${amount.toFixed(2)} ${currency}`;
+  }
+}
+
+export function getTodayDateString(): string {
+  return getTodayInTimezone();
+}
 
 export const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

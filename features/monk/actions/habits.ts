@@ -4,12 +4,12 @@ import { revalidatePath } from "next/cache";
 
 import {
   ensureSettings,
-  getPlaceholderUserId,
   listHabits,
   revalidateMonkPaths,
 } from "@/features/monk/lib/challenge-ops";
 import type { ActionResult, HabitPageData } from "@/features/monk/types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getPlaceholderUserId } from "@/lib/utils/placeholder-user";
 
 function touchMonkPaths() {
   for (const path of revalidateMonkPaths()) {

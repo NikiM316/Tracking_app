@@ -3,11 +3,7 @@
 import { getProgramDay } from "@/lib/program/cycle";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Exercise, Set as DbSet, Workout } from "@/lib/supabase/types";
-import { PLACEHOLDER_USER_ID } from "@/lib/utils/placeholder-user";
-
-function getPlaceholderUserId(): string {
-  return process.env.PLACEHOLDER_USER_ID || PLACEHOLDER_USER_ID;
-}
+import { getPlaceholderUserId } from "@/lib/utils/placeholder-user";
 
 export type HistoryExerciseEntry = {
   exercise: Exercise;
