@@ -1,5 +1,8 @@
-import { AppShell } from "@/features/fitness/components/layout/AppShell";
+import { AppHeader } from "@/features/core/components/AppHeader";
+import { AppShell } from "@/features/core/components/AppShell";
+import { BottomNav } from "@/features/core/components/BottomNav";
 import { getTodaysWorkout } from "@/features/fitness/actions/workout";
+import { FITNESS_NAV_ITEMS } from "@/features/fitness/components/layout/nav-items";
 import { getProgramDay } from "@/lib/program/cycle";
 
 export default async function AppLayout({
@@ -22,9 +25,14 @@ export default async function AppLayout({
 
   return (
     <AppShell
-      cycleDay={cycleDay}
-      headerLabel={headerLabel}
-      headerSubtitle="14-day hybrid fitness cycle"
+      header={
+        <AppHeader
+          eyebrow={`Day ${cycleDay} of 14`}
+          title={headerLabel}
+          subtitle="14-day hybrid fitness cycle"
+        />
+      }
+      nav={<BottomNav items={FITNESS_NAV_ITEMS} ariaLabel="Fitness navigation" />}
     >
       {children}
     </AppShell>

@@ -1,6 +1,7 @@
 import { format, parseISO } from "date-fns";
 
 import type { LocalSet } from "@/features/fitness/components/workout/SetRow";
+import { formatSetCategory } from "@/features/fitness/lib/format";
 import { formatRestDuration } from "@/lib/utils/format-rest";
 import type { Exercise } from "@/lib/supabase/types";
 
@@ -10,13 +11,6 @@ type WorkoutCompleteSummaryProps = {
   exercises: Exercise[];
   setsByExercise: Record<string, LocalSet[]>;
   notesByExercise: Record<string, string>;
-};
-
-const setCategoryLabel: Record<string, string> = {
-  warmup: "Warm-up",
-  top_set: "Top set",
-  working_set: "Normal",
-  back_off: "Back-off",
 };
 
 export function WorkoutCompleteSummary({
@@ -72,7 +66,7 @@ export function WorkoutCompleteSummary({
                     className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-950/70 px-4 py-2.5 text-sm"
                   >
                     <span className="text-zinc-400">
-                      Set {index + 1} · {setCategoryLabel[set.set_category] ?? set.set_category}
+                      Set {index + 1} · {formatSetCategory(set.set_category)}
                     </span>
                     <span className="font-semibold text-zinc-100">
                       {set.weight != null ? `${set.weight} kg × ` : ""}

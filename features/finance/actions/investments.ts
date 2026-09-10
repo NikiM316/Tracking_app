@@ -7,14 +7,14 @@ import {
   getLiveCryptoPrices as fetchLiveCryptoPrices,
   isEthereumHolding,
 } from "@/features/finance/lib/crypto-prices";
-import { getPlaceholderUserId, getTodayDateString } from "@/features/finance/lib/server";
 import type {
   CreateInvestmentTransactionInput,
   CreateSecurityInput,
   HoldingWithDetails,
 } from "@/features/finance/types";
-import { toFiniteNumber } from "@/features/finance/utils";
+import { getTodayDateString, toFiniteNumber } from "@/features/finance/utils";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getPlaceholderUserId } from "@/lib/utils/placeholder-user";
 import type {
   FinanceInvestmentTransaction,
   FinanceSecurity,

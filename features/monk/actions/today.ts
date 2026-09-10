@@ -15,7 +15,6 @@ import {
   ensureTodayDay,
   finalizeDayAndMaybeReset,
   getActiveStudyPlan,
-  getPlaceholderUserId,
   listChallenges,
   listDaysForChallenge,
   listHabitLogs,
@@ -35,8 +34,9 @@ import type {
   StudyWeekPanel,
   TodayPageData,
 } from "@/features/monk/types";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { MonkChallenge, MonkDay, MonkHabit } from "@/lib/supabase/monk-types";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getPlaceholderUserId } from "@/lib/utils/placeholder-user";
 
 type MonkPath = "/monk" | "/monk/challenge" | "/monk/habits";
 

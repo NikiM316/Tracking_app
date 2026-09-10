@@ -12,7 +12,6 @@ import type {
   StudyPlanItem,
   StudyPlanWeek,
 } from "@/lib/supabase/monk-types";
-import { PLACEHOLDER_USER_ID } from "@/lib/utils/placeholder-user";
 import {
   DEFAULT_GAMING_LIMIT_MINUTES,
   isDayLocked,
@@ -29,10 +28,6 @@ import {
 } from "@/features/monk/lib/dates";
 
 export type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
-
-export function getPlaceholderUserId(): string {
-  return process.env.PLACEHOLDER_USER_ID || PLACEHOLDER_USER_ID;
-}
 
 export function revalidateMonkPaths() {
   return ["/monk", "/monk/challenge", "/monk/habits"] as const;

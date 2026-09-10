@@ -2,13 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 
-import {
-  getOrCreateTodayWorkout,
-  getPlaceholderUserId,
-} from "@/features/fitness/lib/today-workout";
+import { getOrCreateTodayWorkout } from "@/features/fitness/lib/today-workout";
 import { CYCLE_PROGRAM, getProgramDay } from "@/lib/program/cycle";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Exercise, Set, SetCategory, Workout } from "@/lib/supabase/types";
+import { getPlaceholderUserId } from "@/lib/utils/placeholder-user";
 import { WATER_INCREMENT_ML } from "@/lib/utils/water";
 
 type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;

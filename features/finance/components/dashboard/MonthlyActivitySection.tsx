@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { MonthActivity } from "@/features/finance/lib/activity";
 import { CategoryTransactionsAccordion } from "@/features/finance/components/dashboard/CategoryTransactionsAccordion";
 import { formatMonthLabel } from "@/features/finance/lib/months";
+import { formatCurrency } from "@/features/finance/utils";
 import type { FinanceCategory } from "@/lib/supabase/finance-types";
 
 type MonthlyActivitySectionProps = {
@@ -11,14 +12,6 @@ type MonthlyActivitySectionProps = {
   /** Import / new-transaction actions belong on the current month only. */
   showActions?: boolean;
 };
-
-function formatCurrency(amount: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
-  } catch {
-    return `${amount.toFixed(2)} ${currency}`;
-  }
-}
 
 const headerButtonClass =
   "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors";

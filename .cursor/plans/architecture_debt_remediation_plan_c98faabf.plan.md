@@ -25,10 +25,10 @@ todos:
     status: completed
   - id: bundle-client-boundary
     content: "Phase 5: next/dynamic for recharts/papaparse/canvas-confetti, remove unnecessary use client, convert accordions to <details>, shrink BottomNav client leaves"
-    status: pending
+    status: completed
   - id: structural-cleanup
     content: "Phase 6: Standardize actions/ layout, remove empty scaffolding, dedupe helpers, resolve dual date and cycle-day models"
-    status: pending
+    status: completed
   - id: type-safety-validation
     content: "Phase 7: Regenerate DB types from live schema, introduce Zod validation for server actions, remove unsafe casts"
     status: pending

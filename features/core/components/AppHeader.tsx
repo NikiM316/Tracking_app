@@ -1,16 +1,20 @@
 import { HomeLink } from "@/features/core/components/HomeLink";
 
-type CycleDayHeaderProps = {
-  cycleDay: number;
-  label?: string;
+type AppHeaderProps = {
+  eyebrow: string;
+  title: string;
   subtitle?: string;
+  tone?: "default" | "failed";
 };
 
-export function CycleDayHeader({
-  cycleDay,
-  label,
+export function AppHeader({
+  eyebrow,
+  title,
   subtitle,
-}: CycleDayHeaderProps) {
+  tone = "default",
+}: AppHeaderProps) {
+  const accent = tone === "failed" ? "text-red-400" : "text-emerald-400";
+
   return (
     <header
       className="sticky top-0 z-40 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/80"
@@ -20,11 +24,11 @@ export function CycleDayHeader({
         <div className="flex items-start gap-2">
           <HomeLink />
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">
-              Day {cycleDay} of 14
+            <p className={`text-xs font-semibold uppercase tracking-widest ${accent}`}>
+              {eyebrow}
             </p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-zinc-50">
-              {label ?? "Hybrid Cycle"}
+              {title}
             </h1>
             {subtitle ? (
               <p className="mt-1 text-sm text-zinc-400">{subtitle}</p>

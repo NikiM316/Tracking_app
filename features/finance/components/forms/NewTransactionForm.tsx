@@ -8,7 +8,7 @@ import { SegmentedControl } from "@/features/core/components/SegmentedControl";
 import { createTransaction } from "@/features/finance/actions/transactions";
 import { DateField } from "@/features/finance/components/forms/DateField";
 import { DecimalField } from "@/features/finance/components/forms/DecimalField";
-import { parseDecimal } from "@/features/finance/utils";
+import { getTodayDateString, parseDecimal } from "@/features/finance/utils";
 import type { AccountWithBalance } from "@/features/finance/types";
 import type {
   FinanceCategory,
@@ -25,10 +25,6 @@ const fieldClassName =
 
 const labelClassName = "text-xs font-medium uppercase tracking-wide text-zinc-500";
 
-function todayDateString(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export function NewTransactionForm({ accounts, categories }: NewTransactionFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -39,7 +35,7 @@ export function NewTransactionForm({ accounts, categories }: NewTransactionFormP
     accounts.find((account) => account.id !== accounts[0]?.id)?.id ?? "",
   );
   const [categoryId, setCategoryId] = useState("");
-  const [date, setDate] = useState(todayDateString());
+  const [date, setDate] = useState(getTodayDateString());
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
 

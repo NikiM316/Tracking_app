@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getPlaceholderUserId } from "@/features/finance/lib/server";
+import { getPlaceholderUserId } from "@/lib/utils/placeholder-user";
 import type { CreatePortfolioInput } from "@/features/finance/types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { FinancePortfolio } from "@/lib/supabase/finance-types";

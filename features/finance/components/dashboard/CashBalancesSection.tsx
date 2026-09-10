@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import type { AccountWithBalance } from "@/features/finance/types";
+import { formatCurrency } from "@/features/finance/utils";
 
 type CashBalancesSectionProps = {
   accounts: AccountWithBalance[];
@@ -15,14 +16,6 @@ const ACCOUNT_TYPE_LABELS: Record<AccountWithBalance["account_type"], string> = 
   brokerage: "Brokerage Cash",
   other: "Other",
 };
-
-function formatCurrency(amount: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
-  } catch {
-    return `${amount.toFixed(2)} ${currency}`;
-  }
-}
 
 export function CashBalancesSection({ accounts }: CashBalancesSectionProps) {
   const totalsByCurrency = new Map<string, number>();

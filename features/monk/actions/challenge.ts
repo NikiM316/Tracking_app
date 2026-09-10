@@ -10,7 +10,6 @@ import {
 } from "@/features/monk/lib/accountability";
 import {
   ensureSettings,
-  getPlaceholderUserId,
   listChallenges,
   listDaysForChallenge,
   listHabits,
@@ -28,8 +27,9 @@ import type {
   ChallengePageData,
   StartChallengeInput,
 } from "@/features/monk/types";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { MonkChallenge, MonkDay } from "@/lib/supabase/monk-types";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getPlaceholderUserId } from "@/lib/utils/placeholder-user";
 
 function touchMonkPaths() {
   for (const path of revalidateMonkPaths()) {

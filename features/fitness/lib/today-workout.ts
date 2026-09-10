@@ -2,24 +2,16 @@ import { cache } from "react";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Workout } from "@/lib/supabase/types";
-import { PLACEHOLDER_USER_ID } from "@/lib/utils/placeholder-user";
+import { nextCycleDay } from "@/lib/utils/cycle-day";
+import { getTodayInTimezone } from "@/lib/utils/dates";
+import { getPlaceholderUserId } from "@/lib/utils/placeholder-user";
 
-const CYCLE_LENGTH = 14;
 const TRANSIENT_QUERY_ATTEMPTS = 4;
 const TRANSIENT_QUERY_BASE_DELAY_MS = 250;
 const TRANSIENT_ERROR_PATTERN =
   /JWT issued at future|fetch failed|Failed to fetch|network|timeout|ECONNRESET|ETIMEDOUT|503|502|429/i;
 
 type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
-
-export function getPlaceholderUserId(): string {
-  return process.env.PLACEHOLDER_USER_ID || PLACEHOLDER_USER_ID;
-}
-
-export function getTodayDateString(): string {
-  const today = new Date();
-  return today.toISOString().slice(0, 10);
-}
 
 function isTransientError(error: unknown): boolean {
   if (!error) return false;
@@ -94,11 +86,7 @@ async function getNextCycleDayBefore(
     }
 
     const previous = data?.[0];
-    if (!previous) {
-      return 1;
-    }
-
-    return (previous.cycle_day % CYCLE_LENGTH) + 1;
+    return nextCycleDay(previous?.cycle_day);
   });
 }
 
@@ -108,7 +96,7 @@ async function getNextCycleDayBefore(
 export const getOrCreateTodayWorkout = cache(async (): Promise<Workout> => {
   const supabase = createServerSupabaseClient();
   const userId = getPlaceholderUserId();
-  const today = getTodayDateString();
+  const today = getTodayInTimezone();
 
   const existing = await fetchWorkoutForDate(supabase, userId, today);
   if (existing) {

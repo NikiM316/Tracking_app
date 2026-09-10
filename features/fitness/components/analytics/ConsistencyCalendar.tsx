@@ -2,7 +2,11 @@
 
 import { useMemo, useState } from "react";
 
-import type { ConsistencyDay } from "@/features/fitness/actions/analytics";
+import type { ConsistencyDay } from "@/features/fitness/lib/consistency";
+import {
+  formatCalendarDateLabel,
+  formatMonthShort,
+} from "@/features/fitness/lib/format";
 
 type ConsistencyCalendarProps = {
   days: ConsistencyDay[];
@@ -23,33 +27,6 @@ const STATUS_LABELS: Record<ConsistencyDay["status"], string> = {
   missed: "Training day missed",
   future: "Upcoming",
 };
-
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-] as const;
-
-function formatDateLabel(dateStr: string): string {
-  // Manual format avoids SSR/client locale mismatches from toLocaleDateString.
-  const date = new Date(`${dateStr}T00:00:00`);
-  return `${WEEKDAYS[date.getDay()]}, ${MONTHS[date.getMonth()]} ${date.getDate()}`;
-}
-
-function formatMonthLabel(dateStr: string): string {
-  const date = new Date(`${dateStr}T00:00:00`);
-  return MONTHS[date.getMonth()];
-}
 
 export function ConsistencyCalendar({ days }: ConsistencyCalendarProps) {
   const [selected, setSelected] = useState<ConsistencyDay | null>(null);
@@ -80,7 +57,7 @@ export function ConsistencyCalendar({ days }: ConsistencyCalendarProps) {
       const firstRealDay = week.find((day) => day !== null);
       if (!firstRealDay) return;
 
-      const month = formatMonthLabel(firstRealDay.date);
+      const month = formatMonthShort(firstRealDay.date);
       if (month !== lastMonth) {
         markers.push({ weekIndex, label: month });
         lastMonth = month;
@@ -115,7 +92,7 @@ export function ConsistencyCalendar({ days }: ConsistencyCalendarProps) {
                     <button
                       key={day.date}
                       type="button"
-                      aria-label={`${formatDateLabel(day.date)}: ${STATUS_LABELS[day.status]}`}
+                      aria-label={`${formatCalendarDateLabel(day.date)}: ${STATUS_LABELS[day.status]}`}
                       onClick={() => setSelected(day)}
                       className={`h-3.5 w-3.5 shrink-0 rounded-[3px] transition-transform active:scale-90 ${STATUS_SQUARE_STYLES[day.status]} ${
                         selected?.date === day.date
@@ -154,7 +131,7 @@ export function ConsistencyCalendar({ days }: ConsistencyCalendarProps) {
 
       {selected ? (
         <div className="rounded-xl border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm">
-          <p className="font-medium text-zinc-200">{formatDateLabel(selected.date)}</p>
+          <p className="font-medium text-zinc-200">{formatCalendarDateLabel(selected.date)}</p>
           <p className="mt-0.5 text-zinc-400">
             {STATUS_LABELS[selected.status]}
             {selected.programLabel ? ` · ${selected.programLabel}` : ""}

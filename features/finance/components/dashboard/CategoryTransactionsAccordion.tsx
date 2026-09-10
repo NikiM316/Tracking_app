@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { RecentTransaction } from "@/features/finance/types";
 import type { CategoryTransactionGroup } from "@/features/finance/lib/activity";
 import { EditTransactionModal } from "@/features/finance/components/dashboard/EditTransactionModal";
+import { formatCurrency } from "@/features/finance/utils";
 import type { FinanceCategory } from "@/lib/supabase/finance-types";
 
 export type { CategoryTransactionGroup };
@@ -13,14 +14,6 @@ type CategoryTransactionsAccordionProps = {
   groups: CategoryTransactionGroup[];
   categories: FinanceCategory[];
 };
-
-function formatCurrency(amount: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
-  } catch {
-    return `${amount.toFixed(2)} ${currency}`;
-  }
-}
 
 function formatDate(dateString: string): string {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(

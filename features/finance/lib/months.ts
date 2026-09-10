@@ -1,10 +1,11 @@
 import { ISO_DATE_PATTERN } from "@/features/finance/utils";
+import { APP_TIMEZONE, getTodayInTimezone } from "@/lib/utils/dates";
 
 /**
  * Calendar months follow the same timezone as Monk Mode so a late-night
  * check on the 1st is not still "last month" just because UTC has not rolled.
  */
-export const FINANCE_TIMEZONE = "Europe/Sofia";
+export const FINANCE_TIMEZONE = APP_TIMEZONE;
 
 /**
  * True only when `dateString` is a real `YYYY-MM-DD` calendar day.
@@ -74,12 +75,7 @@ export function calendarMonthContaining(isoDate: string): CalendarMonth {
 }
 
 export function todayInFinanceTimezone(timeZone: string = FINANCE_TIMEZONE): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+  return getTodayInTimezone(timeZone);
 }
 
 export function currentCalendarMonth(timeZone: string = FINANCE_TIMEZONE): CalendarMonth {
