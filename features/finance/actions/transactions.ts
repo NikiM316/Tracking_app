@@ -44,7 +44,7 @@ export async function fetchHistoricalMonth(
 /**
  * Inserts a single cashflow transaction. Transfers are stored as a single
  * row (account_id = source, transfer_account_id = destination) rather than
- * two mirrored rows, which is enough to compute correct balances on both
+ * destination account, which is enough to compute correct balances on both
  * accounts (see getAccounts) while keeping this action simple.
  */
 export async function createTransaction(

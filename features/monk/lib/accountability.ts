@@ -80,10 +80,6 @@ export function scoreDay(input: DayScoreInput): DayScore {
   };
 }
 
-export function shouldResetOnFail(challenge: Pick<MonkChallenge, "reset_rule">): boolean {
-  return challenge.reset_rule === "on_any_fail";
-}
-
 export type ChallengeStreaks = {
   currentStreak: number;
   bestStreak: number;

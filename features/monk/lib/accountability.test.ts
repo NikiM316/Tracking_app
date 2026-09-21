@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { MonkChallenge, MonkDay } from "@/lib/supabase/monk-types";
+import type { MonkDay } from "@/lib/supabase/monk-types";
 
 import {
   computeChallengeStreaks,
@@ -12,7 +12,6 @@ import {
   nextStartDate,
   previousBestStreak,
   scoreDay,
-  shouldResetOnFail,
   type DayScoreInput,
 } from "./accountability";
 
@@ -222,17 +221,6 @@ describe("scoreDay", () => {
   });
 });
 
-describe("shouldResetOnFail", () => {
-  it("resets the challenge under the on_any_fail rule", () => {
-    expect(shouldResetOnFail({ reset_rule: "on_any_fail" })).toBe(true);
-  });
-
-  it("does not reset under the other rules", () => {
-    expect(shouldResetOnFail({ reset_rule: "consecutive_fails" })).toBe(false);
-    expect(shouldResetOnFail({ reset_rule: "fails_in_window" })).toBe(false);
-  });
-});
-
 describe("computeChallengeStreaks", () => {
   const activeChallenge = {
     status: "active" as const,
@@ -431,10 +419,3 @@ describe("constants", () => {
     expect(DEFAULT_GAMING_LIMIT_MINUTES).toBe(30);
   });
 });
-
-// Type-level guard: the challenge shape scoreDay/shouldResetOnFail rely on must
-// stay assignable from the real DB row type.
-const _resetRuleShape: Pick<MonkChallenge, "reset_rule"> = {
-  reset_rule: "on_any_fail",
-};
-void _resetRuleShape;

@@ -16,7 +16,7 @@ type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
  * balances are never stored directly on finance_accounts.
  *
  * Income/expense are summed in Postgres; only transfer rows are loaded so
- * linked-pair handling can still run in `deriveAccountBalances`.
+ * `deriveAccountBalances` can debit the source and credit the destination.
  */
 export async function getAccounts(): Promise<AccountWithBalance[]> {
   const supabase = createServerSupabaseClient();
@@ -26,6 +26,7 @@ export async function getAccounts(): Promise<AccountWithBalance[]> {
     .from("finance_accounts")
     .select("*")
     .eq("user_id", userId)
+    .eq("is_archived", false)
     .order("created_at", { ascending: true });
 
   if (accountsError) {
@@ -44,7 +45,7 @@ export async function getAccounts(): Promise<AccountWithBalance[]> {
     supabase
       .from("finance_transactions")
       .select(
-        "id, account_id, type, amount, transfer_account_id, transfer_transaction_id, created_at",
+        "account_id, type, amount, transfer_account_id",
       )
       .eq("user_id", userId)
       .eq("type", "transfer"),

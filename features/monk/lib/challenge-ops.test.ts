@@ -26,10 +26,6 @@ function makeChallenge(overrides: Partial<MonkChallenge> = {}): MonkChallenge {
     successful_days_count: 0,
     social_media_limit_minutes: 30,
     max_mandatory_failures_allowed: 0,
-    reset_rule: "on_any_fail",
-    reset_consecutive_count: null,
-    reset_window_days: null,
-    reset_window_fail_count: null,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     ...overrides,
@@ -71,8 +67,7 @@ describe("catchUpMissedDays", () => {
   /**
    * Seeds the fake database from the challenge under test. The loop reloads
    * the challenge from the database after each finalized day, so the stored
-   * row has to agree with the argument — otherwise the reload silently swaps
-   * in a different reset rule halfway through.
+   * row has to agree with the argument.
    */
   function begin(
     challenge: MonkChallenge,
@@ -116,18 +111,21 @@ describe("catchUpMissedDays", () => {
 
   it("never finalizes today, only days up to yesterday", async () => {
     // Today is still in progress; finalizing it would score an unfinished day.
-    const challenge = begin(
-      makeChallenge({
-        started_on: "2026-01-01",
-        reset_rule: "consecutive_fails",
-      }),
+    // The first missed day also ends the attempt, so only yesterday-or-earlier
+    // of the first failure is written.
+    const challenge = begin(makeChallenge({ started_on: "2026-01-01" }));
+
+    const result = await catchUpMissedDays(
+      fake.client,
+      USER_ID,
+      challenge,
+      "2026-01-04",
     );
 
-    await catchUpMissedDays(fake.client, USER_ID, challenge, "2026-01-04");
-
     const dates = fake.db.rows("monk_days").map((day) => day.date);
-    expect(dates).toEqual(["2026-01-01", "2026-01-02", "2026-01-03"]);
+    expect(dates).toEqual(["2026-01-01"]);
     expect(dates).not.toContain("2026-01-04");
+    expect(result.status).toBe("failed");
   });
 
   it("creates and fails a single missed day", async () => {
@@ -155,12 +153,7 @@ describe("catchUpMissedDays", () => {
   it("fails a missed day because screen time was never reported", async () => {
     // This is the load-bearing consequence: an unopened day cannot pass,
     // because null actual minutes fail the digital-fasting check.
-    const challenge = begin(
-      makeChallenge({
-        started_on: "2026-01-01",
-        reset_rule: "consecutive_fails",
-      }),
-    );
+    const challenge = begin(makeChallenge({ started_on: "2026-01-01" }));
 
     await catchUpMissedDays(fake.client, USER_ID, challenge, "2026-01-02");
 
@@ -171,15 +164,10 @@ describe("catchUpMissedDays", () => {
     });
   });
 
-  it("stops at the first failure under the on_any_fail rule", async () => {
+  it("stops at the first missed day and ends the attempt", async () => {
     // Nine days were missed, but the challenge dies on the first one, so only
     // one day row should ever be written.
-    const challenge = begin(
-      makeChallenge({
-        started_on: "2026-01-01",
-        reset_rule: "on_any_fail",
-      }),
-    );
+    const challenge = begin(makeChallenge({ started_on: "2026-01-01" }));
 
     const result = await catchUpMissedDays(
       fake.client,
@@ -197,98 +185,43 @@ describe("catchUpMissedDays", () => {
     ).toHaveLength(1);
   });
 
-  it("walks every missed day when the rule is not on_any_fail", async () => {
-    const challenge = begin(
-      makeChallenge({
-        started_on: "2026-01-01",
-        reset_rule: "consecutive_fails",
-      }),
-    );
-
-    const result = await catchUpMissedDays(
-      fake.client,
-      USER_ID,
-      challenge,
-      "2026-01-06",
-    );
-
-    const days = fake.db.rows("monk_days");
-    expect(days).toHaveLength(5);
-    expect(days.map((day) => day.date)).toEqual([
-      "2026-01-01",
-      "2026-01-02",
-      "2026-01-03",
-      "2026-01-04",
-      "2026-01-05",
-    ]);
-    expect(days.map((day) => day.day_number)).toEqual([1, 2, 3, 4, 5]);
-    expect(days.every((day) => day.status === "failed")).toBe(true);
-    expect(days.every((day) => day.finalization_source === "system_missed")).toBe(
-      true,
-    );
-    expect(result.status).toBe("active");
-    expect(fake.db.queryLog.filter((q) => q === "select monk_days")).toHaveLength(
-      1,
-    );
-    expect(
-      fake.db.queryLog.filter((q) => q === "rpc catch_up_missed_days_tx"),
-    ).toHaveLength(1);
-    expect(fake.db.queryLog.filter((q) => q === "insert monk_days")).toHaveLength(
-      0,
-    );
-    expect(fake.db.queryLog.filter((q) => q === "update monk_days")).toHaveLength(
-      0,
-    );
-  });
-
   it("assigns day numbers relative to the start date, not the catch-up window", async () => {
-    // Day 1 is already finalized, so catch-up resumes at day 2.
-    const challenge = begin(
-      makeChallenge({
-        started_on: "2026-01-01",
-        reset_rule: "consecutive_fails",
-      }),
-      {
-        monk_days: [
-          makeDay({
-            id: "day-existing",
-            date: "2026-01-01",
-            day_number: 1,
-            status: "passed",
-            finalized_at: "2026-01-01T22:00:00Z",
-            finalization_source: "manual",
-          }),
-        ],
-      },
-    );
+    // Day 1 is already finalized, so catch-up resumes at day 2 and stops there
+    // because that missed day fails the attempt.
+    const challenge = begin(makeChallenge({ started_on: "2026-01-01" }), {
+      monk_days: [
+        makeDay({
+          id: "day-existing",
+          date: "2026-01-01",
+          day_number: 1,
+          status: "passed",
+          finalized_at: "2026-01-01T22:00:00Z",
+          finalization_source: "manual",
+        }),
+      ],
+    });
 
     await catchUpMissedDays(fake.client, USER_ID, challenge, "2026-01-04");
 
     const created = fake.db
       .rows("monk_days")
       .filter((day) => day.id !== "day-existing");
-    expect(created.map((day) => day.day_number)).toEqual([2, 3]);
+    expect(created.map((day) => day.day_number)).toEqual([2]);
   });
 
   it("leaves already-finalized days alone rather than rescoring them", async () => {
-    const challenge = begin(
-      makeChallenge({
-        started_on: "2026-01-01",
-        reset_rule: "consecutive_fails",
-      }),
-      {
-        monk_days: [
-          makeDay({
-            id: "day-passed",
-            date: "2026-01-01",
-            day_number: 1,
-            status: "passed",
-            finalized_at: "2026-01-01T22:00:00Z",
-            finalization_source: "manual",
-          }),
-        ],
-      },
-    );
+    const challenge = begin(makeChallenge({ started_on: "2026-01-01" }), {
+      monk_days: [
+        makeDay({
+          id: "day-passed",
+          date: "2026-01-01",
+          day_number: 1,
+          status: "passed",
+          finalized_at: "2026-01-01T22:00:00Z",
+          finalization_source: "manual",
+        }),
+      ],
+    });
 
     await catchUpMissedDays(fake.client, USER_ID, challenge, "2026-01-03");
 
@@ -304,13 +237,9 @@ describe("catchUpMissedDays", () => {
   it("marks a day that existed but was left open as automatically finalized", async () => {
     // "automatic" vs "system_missed" distinguishes "you opened it and walked
     // away" from "you never showed up".
-    const challenge = begin(
-      makeChallenge({
-        started_on: "2026-01-01",
-        reset_rule: "consecutive_fails",
-      }),
-      { monk_days: [makeDay({ id: "day-open", date: "2026-01-01", day_number: 1 })] },
-    );
+    const challenge = begin(makeChallenge({ started_on: "2026-01-01" }), {
+      monk_days: [makeDay({ id: "day-open", date: "2026-01-01", day_number: 1 })],
+    });
 
     await catchUpMissedDays(fake.client, USER_ID, challenge, "2026-01-02");
 
@@ -322,57 +251,10 @@ describe("catchUpMissedDays", () => {
     });
   });
 
-  it("finalizes an open day and bulk-inserts later missing dates", async () => {
-    const challenge = begin(
-      makeChallenge({
-        started_on: "2026-01-01",
-        reset_rule: "consecutive_fails",
-      }),
-      { monk_days: [makeDay({ id: "day-open", date: "2026-01-01", day_number: 1 })] },
-    );
-
-    await catchUpMissedDays(fake.client, USER_ID, challenge, "2026-01-04");
-
-    const days = [...fake.db.rows("monk_days")].sort((left, right) =>
-      String(left.date).localeCompare(String(right.date)),
-    );
-    expect(days).toHaveLength(3);
-    expect(days[0]).toMatchObject({
-      id: "day-open",
-      status: "failed",
-      finalization_source: "automatic",
-    });
-    expect(days.slice(1)).toEqual([
-      expect.objectContaining({
-        date: "2026-01-02",
-        status: "failed",
-        finalization_source: "system_missed",
-      }),
-      expect.objectContaining({
-        date: "2026-01-03",
-        status: "failed",
-        finalization_source: "system_missed",
-      }),
-    ]);
-    expect(fake.db.queryLog.filter((q) => q === "insert monk_days")).toHaveLength(
-      0,
-    );
-    expect(fake.db.queryLog.filter((q) => q === "update monk_days")).toHaveLength(
-      0,
-    );
-    expect(
-      fake.db.queryLog.filter((q) => q === "rpc catch_up_missed_days_tx"),
-    ).toHaveLength(1);
-  });
-
   it("does not create later missed days when an open day fails the attempt", async () => {
-    const challenge = begin(
-      makeChallenge({
-        started_on: "2026-01-01",
-        reset_rule: "on_any_fail",
-      }),
-      { monk_days: [makeDay({ id: "day-open", date: "2026-01-01", day_number: 1 })] },
-    );
+    const challenge = begin(makeChallenge({ started_on: "2026-01-01" }), {
+      monk_days: [makeDay({ id: "day-open", date: "2026-01-01", day_number: 1 })],
+    });
 
     const result = await catchUpMissedDays(
       fake.client,
@@ -392,13 +274,40 @@ describe("catchUpMissedDays", () => {
   });
 
   it("does not catch up past the final day of the challenge", async () => {
-    // A 3-day challenge left alone for a month must not create day 4+.
+    // A finished 3-day challenge left alone for a month must not create day 4+.
     const challenge = begin(
       makeChallenge({
         started_on: "2026-01-01",
         target_days: 3,
-        reset_rule: "consecutive_fails",
       }),
+      {
+        monk_days: [
+          makeDay({
+            id: "day-1",
+            date: "2026-01-01",
+            day_number: 1,
+            status: "passed",
+            finalized_at: "2026-01-01T22:00:00Z",
+            finalization_source: "manual",
+          }),
+          makeDay({
+            id: "day-2",
+            date: "2026-01-02",
+            day_number: 2,
+            status: "passed",
+            finalized_at: "2026-01-02T22:00:00Z",
+            finalization_source: "manual",
+          }),
+          makeDay({
+            id: "day-3",
+            date: "2026-01-03",
+            day_number: 3,
+            status: "passed",
+            finalized_at: "2026-01-03T22:00:00Z",
+            finalization_source: "manual",
+          }),
+        ],
+      },
     );
 
     await catchUpMissedDays(fake.client, USER_ID, challenge, "2026-02-01");
@@ -413,7 +322,6 @@ describe("catchUpMissedDays", () => {
       makeChallenge({
         started_on: "2026-01-01",
         target_days: 1,
-        reset_rule: "consecutive_fails",
       }),
       {
         monk_days: [
@@ -445,7 +353,6 @@ describe("catchUpMissedDays", () => {
     const challenge = begin(
       makeChallenge({
         started_on: "2026-01-01",
-        reset_rule: "consecutive_fails",
       }),
       {
         monk_habits: [
@@ -488,7 +395,6 @@ describe("catchUpMissedDays", () => {
     const challenge = begin(
       makeChallenge({
         started_on: "2026-01-01",
-        reset_rule: "consecutive_fails",
       }),
     );
     fake.db.failRpcAfterMissingDays = true;
@@ -504,7 +410,7 @@ describe("catchUpMissedDays", () => {
 
 describe("finalizeDayAndMaybeReset", () => {
   it("passes a compliant day and leaves the challenge active", async () => {
-    const challenge = makeChallenge({ reset_rule: "on_any_fail" });
+    const challenge = makeChallenge();
     const day = makeDay(compliantDayFields());
     const fake = createFakeSupabase({
       monk_challenges: [makeChallenge()],
@@ -524,7 +430,7 @@ describe("finalizeDayAndMaybeReset", () => {
   });
 
   it("fails a day over the social media limit and resets the challenge", async () => {
-    const challenge = makeChallenge({ reset_rule: "on_any_fail" });
+    const challenge = makeChallenge();
     const day = makeDay({
       social_media_actual_minutes: 120,
       gaming_actual_minutes: 0,
@@ -544,27 +450,6 @@ describe("finalizeDayAndMaybeReset", () => {
     expect(result.day.status).toBe("failed");
     expect(result.challenge.status).toBe("failed");
     expect(result.challenge.ended_day_number).toBe(1);
-  });
-
-  it("keeps the challenge active on a failure when the rule is not on_any_fail", async () => {
-    const challenge = makeChallenge({ reset_rule: "fails_in_window" });
-    const day = makeDay({
-      social_media_actual_minutes: 120,
-      gaming_actual_minutes: 0,
-    });
-    const fake = createFakeSupabase({
-      monk_challenges: [makeChallenge({ reset_rule: "fails_in_window" })],
-      monk_days: [{ ...day }],
-    });
-
-    const result = await finalizeDayAndMaybeReset(fake.client, {
-      day,
-      challenge,
-      source: "manual",
-    });
-
-    expect(result.passed).toBe(false);
-    expect(result.challenge.status).toBe("active");
   });
 
   it("is idempotent on an already-finalized day", async () => {
@@ -662,10 +547,10 @@ describe("finalizeDayAndMaybeReset", () => {
   });
 
   it("fails the day when a mandatory task is incomplete", async () => {
-    const challenge = makeChallenge({ reset_rule: "consecutive_fails" });
+    const challenge = makeChallenge();
     const day = makeDay(compliantDayFields());
     const fake = createFakeSupabase({
-      monk_challenges: [makeChallenge({ reset_rule: "consecutive_fails" })],
+      monk_challenges: [makeChallenge()],
       monk_days: [{ ...day }],
       monk_tasks: [
         {
@@ -688,13 +573,14 @@ describe("finalizeDayAndMaybeReset", () => {
 
     expect(result.passed).toBe(false);
     expect(result.day.status).toBe("failed");
+    expect(result.challenge.status).toBe("failed");
   });
 
   it("persists the reflection alongside the finalization", async () => {
-    const challenge = makeChallenge({ reset_rule: "consecutive_fails" });
+    const challenge = makeChallenge();
     const day = makeDay(compliantDayFields());
     const fake = createFakeSupabase({
-      monk_challenges: [makeChallenge({ reset_rule: "consecutive_fails" })],
+      monk_challenges: [makeChallenge()],
       monk_days: [{ ...day }],
     });
 

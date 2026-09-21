@@ -34,7 +34,7 @@ todos:
     status: completed
   - id: schema-cleanup
     content: "Phase 8: Decide keep/implement/deprecate for unused schema surface (finance budgets/fx/prices, monk goals/commitments/app_usage/overrides, zone_2)"
-    status: pending
+    status: completed
   - id: pwa-completion
     content: "Phase 9: Generate PWA icons, add a service worker, remove @supabase/ssr, move manifest to app/manifest.ts, fix root branding"
     status: pending
@@ -171,10 +171,11 @@ Can proceed in parallel with Phases 1–5 once Phase 0 is done.
 
 ## Phase 8 — Decide the fate of unused schema surface (Medium)
 
-For each item, either wire up minimal UI/logic or formally deprecate it (drop the table/column in a migration, or mark it clearly as reserved-for-later in a comment):
-- Finance: `finance_budgets` + `finance_budget_items`, `finance_fx_rates`, `finance_security_prices`, `finance_settings.base_currency`, `cashflow_transaction_id`, `finance_portfolios.account_id`, two-row transfers via `transfer_transaction_id`. Also fix `getAccounts()` to filter `is_archived`.
-- Monk: `monk_goals`, `monk_commitments`, `monk_app_usage`, `monk_overrides` (note: given the Phase 0.3 decision to keep the lock absolute rather than build an unlock UI, `monk_overrides` is a strong candidate for deprecation rather than implementation). Also decide whether to implement `consecutive_fails` / `fails_in_window` reset rules in `shouldResetOnFail()` or remove those columns.
-- Fitness: decide whether `zone_2` set category gets a UI path or gets removed from the enum; delete the unused exports `getPreviousExerciseSession` / `getPreviousTopSet` if nothing will call them.
+**Decision: delete.** Unused tables, columns, enums, and the matching application logic were removed in `20260921130414_drop_unused_schema_surface`.
+
+- Finance: dropped `finance_budgets` + `finance_budget_items`, `finance_fx_rates`, `finance_security_prices`, and `finance_settings` (its only field was unused `base_currency`). Dropped `cashflow_transaction_id`, `finance_portfolios.account_id`, and `transfer_transaction_id`. `getAccounts()` now filters `is_archived`.
+- Monk: dropped `monk_goals`, `monk_commitments`, `monk_app_usage`, `monk_overrides`. Dropped `reset_rule` / consecutive / window columns; a failed day always ends the attempt.
+- Fitness: dropped `zone_2` from `set_category`. `getPreviousExerciseSession` / `getPreviousTopSet` were already inlined as private batch helpers in Phase 3.
 
 ---
 

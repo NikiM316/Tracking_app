@@ -101,10 +101,6 @@ export async function startChallenge(
     status: "active",
     social_media_limit_minutes: limit,
     max_mandatory_failures_allowed: settings.max_mandatory_failures_allowed,
-    reset_rule: settings.reset_rule,
-    reset_consecutive_count: settings.reset_consecutive_count,
-    reset_window_days: settings.reset_window_days,
-    reset_window_fail_count: settings.reset_window_fail_count,
   });
 
   if (challengeError) {
