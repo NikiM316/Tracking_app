@@ -2,7 +2,7 @@
 --
 -- Scope note: this file only seeds the exercise catalog. The other two seeded
 -- data sets already live inside migrations and must not be duplicated here:
---   * 21 default finance categories + finance_settings
+--   * 21 default finance categories
 --       -> 20260807073934_seed_finance_defaults_for_placeholder_user.sql
 --   * monk_settings + the 6-week study plan (6 weeks, 38 items)
 --       -> 20260820083115_create_monk_mode_schema.sql

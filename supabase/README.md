@@ -59,6 +59,6 @@ timestamped file rather than editing an applied one, and regenerate
 
 ## Security model
 
-RLS is enabled on all 29 tables with only deny-all policies; the app reaches the
+RLS is enabled on all 20 tables with only deny-all policies; the app reaches the
 database exclusively through the server-side service-role client, which bypasses
 RLS. See [SECURITY.md](../SECURITY.md) before changing any of this.

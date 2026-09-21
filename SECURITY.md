@@ -40,14 +40,14 @@ browser.**
 
 ## Database lockdown
 
-RLS is enabled on all 29 public tables. Originally there were **zero** policies,
+RLS is enabled on all 20 public tables. Originally there were **zero** policies,
 which fails closed but only by accident, and it left one real hole. Migration
 [`20260902071914_lock_down_public_access.sql`](supabase/migrations/20260902071914_lock_down_public_access.sql)
 turns that into declared intent:
 
 | Measure | Effect |
 | --- | --- |
-| `deny_all_anon_authenticated` restrictive policy on all 29 tables | `anon` and `authenticated` are denied on every table, and stay denied even if a permissive policy is added later |
+| `deny_all_anon_authenticated` restrictive policy on all 20 tables | `anon` and `authenticated` are denied on every table, and stay denied even if a permissive policy is added later |
 | `REVOKE ALL ON ALL TABLES` from `anon`, `authenticated` | No table privileges remain behind the policies, so the lockdown survives RLS being toggled off |
 | `ALTER DEFAULT PRIVILEGES ... REVOKE` for both roles | Newly created tables are not auto-granted to client roles |
 | `REVOKE EXECUTE ON increment_workout_water` from `PUBLIC`, `anon`, `authenticated` | Closes the one genuine hole (see below) |

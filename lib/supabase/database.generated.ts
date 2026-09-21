@@ -137,81 +137,6 @@ export type Database = {
         }
         Relationships: []
       }
-      finance_budget_items: {
-        Row: {
-          allocated_amount: number
-          budget_id: string
-          category_id: string
-          created_at: string
-          id: string
-        }
-        Insert: {
-          allocated_amount: number
-          budget_id: string
-          category_id: string
-          created_at?: string
-          id?: string
-        }
-        Update: {
-          allocated_amount?: number
-          budget_id?: string
-          category_id?: string
-          created_at?: string
-          id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "finance_budget_items_budget_id_fkey"
-            columns: ["budget_id"]
-            isOneToOne: false
-            referencedRelation: "finance_budgets"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "finance_budget_items_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "finance_categories"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      finance_budgets: {
-        Row: {
-          created_at: string
-          currency: string
-          end_date: string | null
-          id: string
-          name: string
-          period: Database["public"]["Enums"]["finance_budget_period"]
-          start_date: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          currency?: string
-          end_date?: string | null
-          id?: string
-          name: string
-          period?: Database["public"]["Enums"]["finance_budget_period"]
-          start_date: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          currency?: string
-          end_date?: string | null
-          id?: string
-          name?: string
-          period?: Database["public"]["Enums"]["finance_budget_period"]
-          start_date?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       finance_categories: {
         Row: {
           color: string | null
@@ -258,33 +183,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      finance_fx_rates: {
-        Row: {
-          base_currency: string
-          created_at: string
-          id: string
-          quote_currency: string
-          rate: number
-          rate_date: string
-        }
-        Insert: {
-          base_currency: string
-          created_at?: string
-          id?: string
-          quote_currency: string
-          rate: number
-          rate_date: string
-        }
-        Update: {
-          base_currency?: string
-          created_at?: string
-          id?: string
-          quote_currency?: string
-          rate?: number
-          rate_date?: string
-        }
-        Relationships: []
       }
       finance_holdings: {
         Row: {
@@ -334,7 +232,6 @@ export type Database = {
       finance_investment_transactions: {
         Row: {
           amount: number
-          cashflow_transaction_id: string | null
           created_at: string
           currency: string
           external_id: string | null
@@ -352,7 +249,6 @@ export type Database = {
         }
         Insert: {
           amount: number
-          cashflow_transaction_id?: string | null
           created_at?: string
           currency?: string
           external_id?: string | null
@@ -370,7 +266,6 @@ export type Database = {
         }
         Update: {
           amount?: number
-          cashflow_transaction_id?: string | null
           created_at?: string
           currency?: string
           external_id?: string | null
@@ -387,13 +282,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "finance_investment_transactions_cashflow_transaction_id_fkey"
-            columns: ["cashflow_transaction_id"]
-            isOneToOne: false
-            referencedRelation: "finance_transactions"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "finance_investment_transactions_portfolio_id_fkey"
             columns: ["portfolio_id"]
@@ -412,7 +300,6 @@ export type Database = {
       }
       finance_portfolios: {
         Row: {
-          account_id: string | null
           base_currency: string
           created_at: string
           id: string
@@ -422,7 +309,6 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          account_id?: string | null
           base_currency?: string
           created_at?: string
           id?: string
@@ -432,7 +318,6 @@ export type Database = {
           user_id: string
         }
         Update: {
-          account_id?: string | null
           base_currency?: string
           created_at?: string
           id?: string
@@ -441,15 +326,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "finance_portfolios_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "finance_accounts"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       finance_securities: {
         Row: {
@@ -490,65 +367,6 @@ export type Database = {
         }
         Relationships: []
       }
-      finance_security_prices: {
-        Row: {
-          close: number
-          created_at: string
-          currency: string
-          id: string
-          price_date: string
-          security_id: string
-          source: string | null
-        }
-        Insert: {
-          close: number
-          created_at?: string
-          currency?: string
-          id?: string
-          price_date: string
-          security_id: string
-          source?: string | null
-        }
-        Update: {
-          close?: number
-          created_at?: string
-          currency?: string
-          id?: string
-          price_date?: string
-          security_id?: string
-          source?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "finance_security_prices_security_id_fkey"
-            columns: ["security_id"]
-            isOneToOne: false
-            referencedRelation: "finance_securities"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      finance_settings: {
-        Row: {
-          base_currency: string
-          created_at: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          base_currency?: string
-          created_at?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          base_currency?: string
-          created_at?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       finance_transactions: {
         Row: {
           account_id: string
@@ -564,7 +382,6 @@ export type Database = {
           payee: string | null
           provider: string | null
           transfer_account_id: string | null
-          transfer_transaction_id: string | null
           type: Database["public"]["Enums"]["finance_transaction_type"]
           updated_at: string
           user_id: string
@@ -583,7 +400,6 @@ export type Database = {
           payee?: string | null
           provider?: string | null
           transfer_account_id?: string | null
-          transfer_transaction_id?: string | null
           type: Database["public"]["Enums"]["finance_transaction_type"]
           updated_at?: string
           user_id: string
@@ -602,7 +418,6 @@ export type Database = {
           payee?: string | null
           provider?: string | null
           transfer_account_id?: string | null
-          transfer_transaction_id?: string | null
           type?: Database["public"]["Enums"]["finance_transaction_type"]
           updated_at?: string
           user_id?: string
@@ -629,48 +444,6 @@ export type Database = {
             referencedRelation: "finance_accounts"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "finance_transactions_transfer_transaction_id_fkey"
-            columns: ["transfer_transaction_id"]
-            isOneToOne: false
-            referencedRelation: "finance_transactions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      monk_app_usage: {
-        Row: {
-          app_name: string
-          created_at: string
-          day_id: string
-          id: string
-          minutes: number
-          updated_at: string
-        }
-        Insert: {
-          app_name: string
-          created_at?: string
-          day_id: string
-          id?: string
-          minutes: number
-          updated_at?: string
-        }
-        Update: {
-          app_name?: string
-          created_at?: string
-          day_id?: string
-          id?: string
-          minutes?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "monk_app_usage_day_id_fkey"
-            columns: ["day_id"]
-            isOneToOne: false
-            referencedRelation: "monk_days"
-            referencedColumns: ["id"]
-          },
         ]
       }
       monk_challenges: {
@@ -681,10 +454,6 @@ export type Database = {
           ended_on: string | null
           id: string
           max_mandatory_failures_allowed: number
-          reset_consecutive_count: number | null
-          reset_rule: Database["public"]["Enums"]["monk_reset_rule"]
-          reset_window_days: number | null
-          reset_window_fail_count: number | null
           social_media_limit_minutes: number
           started_on: string
           status: Database["public"]["Enums"]["monk_challenge_status"]
@@ -700,10 +469,6 @@ export type Database = {
           ended_on?: string | null
           id?: string
           max_mandatory_failures_allowed: number
-          reset_consecutive_count?: number | null
-          reset_rule: Database["public"]["Enums"]["monk_reset_rule"]
-          reset_window_days?: number | null
-          reset_window_fail_count?: number | null
           social_media_limit_minutes: number
           started_on: string
           status?: Database["public"]["Enums"]["monk_challenge_status"]
@@ -719,10 +484,6 @@ export type Database = {
           ended_on?: string | null
           id?: string
           max_mandatory_failures_allowed?: number
-          reset_consecutive_count?: number | null
-          reset_rule?: Database["public"]["Enums"]["monk_reset_rule"]
-          reset_window_days?: number | null
-          reset_window_fail_count?: number | null
           social_media_limit_minutes?: number
           started_on?: string
           status?: Database["public"]["Enums"]["monk_challenge_status"]
@@ -732,44 +493,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
-      }
-      monk_commitments: {
-        Row: {
-          created_at: string
-          day_id: string
-          id: string
-          is_completed: boolean
-          rank: number
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          day_id: string
-          id?: string
-          is_completed?: boolean
-          rank: number
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          day_id?: string
-          id?: string
-          is_completed?: boolean
-          rank?: number
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "monk_commitments_day_id_fkey"
-            columns: ["day_id"]
-            isOneToOne: false
-            referencedRelation: "monk_days"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       monk_days: {
         Row: {
@@ -847,39 +570,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      monk_goals: {
-        Row: {
-          created_at: string
-          id: string
-          sort_order: number
-          status: Database["public"]["Enums"]["monk_goal_status"]
-          target_date: string | null
-          title: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          sort_order?: number
-          status?: Database["public"]["Enums"]["monk_goal_status"]
-          target_date?: string | null
-          title: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          sort_order?: number
-          status?: Database["public"]["Enums"]["monk_goal_status"]
-          target_date?: string | null
-          title?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
       }
       monk_habit_logs: {
         Row: {
@@ -977,61 +667,10 @@ export type Database = {
         }
         Relationships: []
       }
-      monk_overrides: {
-        Row: {
-          created_at: string
-          day_id: string
-          entity_id: string
-          entity_type: Database["public"]["Enums"]["monk_override_entity_type"]
-          field: string
-          id: string
-          new_value: Json | null
-          previous_value: Json | null
-          reason: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          day_id: string
-          entity_id: string
-          entity_type: Database["public"]["Enums"]["monk_override_entity_type"]
-          field: string
-          id?: string
-          new_value?: Json | null
-          previous_value?: Json | null
-          reason: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          day_id?: string
-          entity_id?: string
-          entity_type?: Database["public"]["Enums"]["monk_override_entity_type"]
-          field?: string
-          id?: string
-          new_value?: Json | null
-          previous_value?: Json | null
-          reason?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "monk_overrides_day_id_fkey"
-            columns: ["day_id"]
-            isOneToOne: false
-            referencedRelation: "monk_days"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       monk_settings: {
         Row: {
           created_at: string
           max_mandatory_failures_allowed: number
-          reset_consecutive_count: number | null
-          reset_rule: Database["public"]["Enums"]["monk_reset_rule"]
-          reset_window_days: number | null
-          reset_window_fail_count: number | null
           social_media_limit_minutes: number
           timezone: string
           updated_at: string
@@ -1040,10 +679,6 @@ export type Database = {
         Insert: {
           created_at?: string
           max_mandatory_failures_allowed?: number
-          reset_consecutive_count?: number | null
-          reset_rule?: Database["public"]["Enums"]["monk_reset_rule"]
-          reset_window_days?: number | null
-          reset_window_fail_count?: number | null
           social_media_limit_minutes?: number
           timezone?: string
           updated_at?: string
@@ -1052,10 +687,6 @@ export type Database = {
         Update: {
           created_at?: string
           max_mandatory_failures_allowed?: number
-          reset_consecutive_count?: number | null
-          reset_rule?: Database["public"]["Enums"]["monk_reset_rule"]
-          reset_window_days?: number | null
-          reset_window_fail_count?: number | null
           social_media_limit_minutes?: number
           timezone?: string
           updated_at?: string
@@ -1363,7 +994,6 @@ export type Database = {
         | "loan"
         | "brokerage"
         | "other"
-      finance_budget_period: "monthly" | "weekly" | "yearly"
       finance_category_kind: "expense" | "income"
       finance_investment_tx_type:
         | "buy"
@@ -1388,10 +1018,7 @@ export type Database = {
       monk_challenge_status: "active" | "failed" | "completed" | "abandoned"
       monk_day_status: "in_progress" | "passed" | "failed"
       monk_finalization_source: "manual" | "automatic" | "system_missed"
-      monk_goal_status: "active" | "completed" | "abandoned"
-      monk_override_entity_type: "day" | "task" | "habit_log" | "app_usage"
-      monk_reset_rule: "on_any_fail" | "consecutive_fails" | "fails_in_window"
-      set_category: "warmup" | "top_set" | "back_off" | "working_set" | "zone_2"
+      set_category: "warmup" | "top_set" | "back_off" | "working_set"
       study_item_kind: "resource" | "build" | "task"
       study_plan_source: "seeded" | "custom"
       study_plan_status: "active" | "completed" | "archived"
@@ -1532,7 +1159,6 @@ export const Constants = {
         "brokerage",
         "other",
       ],
-      finance_budget_period: ["monthly", "weekly", "yearly"],
       finance_category_kind: ["expense", "income"],
       finance_investment_tx_type: [
         "buy",
@@ -1559,10 +1185,7 @@ export const Constants = {
       monk_challenge_status: ["active", "failed", "completed", "abandoned"],
       monk_day_status: ["in_progress", "passed", "failed"],
       monk_finalization_source: ["manual", "automatic", "system_missed"],
-      monk_goal_status: ["active", "completed", "abandoned"],
-      monk_override_entity_type: ["day", "task", "habit_log", "app_usage"],
-      monk_reset_rule: ["on_any_fail", "consecutive_fails", "fails_in_window"],
-      set_category: ["warmup", "top_set", "back_off", "working_set", "zone_2"],
+      set_category: ["warmup", "top_set", "back_off", "working_set"],
       study_item_kind: ["resource", "build", "task"],
       study_plan_source: ["seeded", "custom"],
       study_plan_status: ["active", "completed", "archived"],

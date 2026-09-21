@@ -1,11 +1,8 @@
 import type { Enums, Tables } from "./database.generated";
 
-export type MonkResetRule = Enums<"monk_reset_rule">;
 export type MonkChallengeStatus = Enums<"monk_challenge_status">;
 export type MonkDayStatus = Enums<"monk_day_status">;
 export type MonkFinalizationSource = Enums<"monk_finalization_source">;
-export type MonkGoalStatus = Enums<"monk_goal_status">;
-export type MonkOverrideEntityType = Enums<"monk_override_entity_type">;
 export type StudyPlanStatus = Enums<"study_plan_status">;
 export type StudyPlanSource = Enums<"study_plan_source">;
 export type StudyItemKind = Enums<"study_item_kind">;
@@ -16,10 +13,6 @@ export type MonkDay = Tables<"monk_days">;
 export type MonkHabit = Tables<"monk_habits">;
 export type MonkHabitLog = Tables<"monk_habit_logs">;
 export type MonkTask = Tables<"monk_tasks">;
-export type MonkAppUsage = Tables<"monk_app_usage">;
-export type MonkGoal = Tables<"monk_goals">;
-export type MonkCommitment = Tables<"monk_commitments">;
-export type MonkOverride = Tables<"monk_overrides">;
 export type StudyPlan = Tables<"study_plans">;
 export type StudyPlanWeek = Tables<"study_plan_weeks">;
 export type StudyPlanItem = Tables<"study_plan_items">;

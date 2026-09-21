@@ -5,7 +5,6 @@ export const SET_CATEGORY_LABELS: Record<SetCategory, string> = {
   top_set: "Top set",
   working_set: "Normal",
   back_off: "Back-off",
-  zone_2: "Zone 2",
 };
 
 export const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;

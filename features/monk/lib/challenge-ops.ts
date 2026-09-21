@@ -17,7 +17,6 @@ import {
   DEFAULT_GAMING_LIMIT_MINUTES,
   isDayLocked,
   scoreDay,
-  shouldResetOnFail,
 } from "@/features/monk/lib/accountability";
 import {
   addDays,
@@ -515,13 +514,13 @@ export async function finalizeDayAndMaybeReset(
 
   let challenge = params.challenge;
 
-  if (!result.passed && shouldResetOnFail(challenge)) {
+  if (!result.passed) {
     challenge = await closeChallenge(supabase, challenge, {
       status: "failed",
       endedOn: updatedDay.date,
       endedDayNumber: updatedDay.day_number,
     });
-  } else if (result.passed && updatedDay.day_number >= challenge.target_days) {
+  } else if (updatedDay.day_number >= challenge.target_days) {
     challenge = await closeChallenge(supabase, challenge, {
       status: "completed",
       endedOn: updatedDay.date,
@@ -666,13 +665,13 @@ export async function catchUpMissedDays(
       });
       openFinalizations.push({ day: existing, passed: result.passed });
 
-      if (!result.passed && shouldResetOnFail(challenge)) {
+      if (!result.passed) {
         close = {
           status: "failed",
           endedOn: date,
           endedDayNumber: dayNumber,
         };
-      } else if (result.passed && dayNumber >= challenge.target_days) {
+      } else if (dayNumber >= challenge.target_days) {
         close = {
           status: "completed",
           endedOn: date,
@@ -694,13 +693,11 @@ export async function catchUpMissedDays(
       gaming_limit_minutes: DEFAULT_GAMING_LIMIT_MINUTES,
     });
 
-    if (shouldResetOnFail(challenge)) {
-      close = {
-        status: "failed",
-        endedOn: date,
-        endedDayNumber: dayNumber,
-      };
-    }
+    close = {
+      status: "failed",
+      endedOn: date,
+      endedDayNumber: dayNumber,
+    };
   }
 
   const finalizedOpenIds = new Set(
