@@ -37,7 +37,7 @@ todos:
     status: completed
   - id: pwa-completion
     content: "Phase 9: Generate PWA icons, add a service worker, remove @supabase/ssr, move manifest to app/manifest.ts, fix root branding"
-    status: pending
+    status: completed
   - id: docs-process
     content: "Phase 10: Rewrite README, retire project-context.md, update stale plan docs, clarify Study_plan.md, gitignore .DS_Store, add basic CI"
     status: pending
@@ -49,6 +49,7 @@ isProject: false
 Source: [project-architecture.md](project-architecture.md) §7 ("Current Technical State & Debt"). This plan sequences every issue identified there into an executable backlog, ordered so that safety nets (reproducibility, tests, security) land before refactors, and refactors land before cosmetic cleanup.
 
 Decisions locked in for this plan (per your answers):
+
 - **Auth stays single-user.** No Supabase Auth UI, no per-user RLS policy set. Instead: close the one real security hole (the exposed RPC) and add explicit default-deny RLS policies so the empty-policy state is documented intent, not an accident.
 - **Test runner: Vitest.**
 - **Scope: everything** in §7, critical through low, as one phased backlog.
@@ -67,6 +68,8 @@ flowchart TD
   P9 --> P10["Phase 10: Docs and process"]
 ```
 
+
+
 Phases 0 through 3 are strictly sequential (each depends on the previous being safe to build on). Phases 6, 9, and 10 can run in parallel with the performance track once Phase 0 is done, since they touch mostly disjoint files.
 
 ---
@@ -76,12 +79,14 @@ Phases 0 through 3 are strictly sequential (each depends on the previous being s
 These make every later phase safer and are cheap relative to their risk reduction.
 
 ### 0.1 Commit database migrations and seed data
+
 - Export the 10 already-applied migrations from the live Supabase project (`rxfcnpdwwkfaaxnciyxj`) into a committed `supabase/migrations/` directory via `supabase db pull` or manual SQL export, covering: `add_rest_seconds_to_sets`, `add_water_ml_to_workouts`, `add_increment_workout_water_function`, `create_finance_schema`, `seed_finance_defaults_for_placeholder_user`, `create_monk_mode_schema`, `harden_monk_schema`, `add_is_completed_to_study_plan_weeks`, `add_is_completed_to_study_plan_items`, `add_gaming_minutes_to_monk_days`.
 - Write a seed script (SQL or a `scripts/seed.ts`) for the 70 [exercises](lib/program/cycle.ts), 21 finance default categories, and the 6-week study plan currently seeded only on the live project.
 - Add a short "Local setup" section stub here (full README rewrite happens in Phase 10) so a fresh clone has a documented path to a working database.
 - Verify by running the migrations against a scratch Supabase project (or `supabase start` locally) and confirming the app boots against it.
 
 ### 0.2 Stand up Vitest and cover the highest-risk pure logic
+
 - Add `vitest` + `@vitest/coverage-v8` as dev dependencies, plus a `vitest.config.ts` aliasing `@/*` the same way `tsconfig.json` does, and a `"test": "vitest run"` script in [package.json](package.json).
 - Write unit tests for, in priority order:
   1. `scoreDay()` and `shouldResetOnFail()` in [features/monk/lib/accountability.ts](features/monk/lib/accountability.ts) — the functions that decide whether 180 days get wiped.
@@ -93,6 +98,7 @@ These make every later phase safer and are cheap relative to their risk reductio
 - Target: every pure function listed above has at least one happy-path test and one boundary/edge-case test (midnight rollover, empty input, zero/negative amounts, day 180, day 1).
 
 ### 0.3 Close the real security hole and document the single-user model
+
 - Revoke public execute rights on the exposed RPC: `REVOKE EXECUTE ON FUNCTION public.increment_workout_water(uuid, int) FROM anon, authenticated;` so only the service role (used server-side) can call it. This is the one finding where the empty-RLS-policy fail-closed behavior does *not* apply.
 - Add explicit deny-all RLS policies (e.g. `CREATE POLICY deny_all ON <table> FOR ALL TO anon, authenticated USING (false);`) across all 29 tables, or a single reusable pattern applied per table, so the security posture is declared rather than incidental. This silences the `rls_enabled_no_policy` advisory and makes the intent auditable.
 - Add a short, explicit "Security model" note (README or a `SECURITY.md`) stating: single-user prototype, all access via the service-role key on the server, `SUPABASE_SERVICE_ROLE_KEY` must never be prefixed `NEXT_PUBLIC_` or sent to the client, and real multi-user auth is out of scope until this changes.
@@ -183,11 +189,11 @@ Can proceed in parallel with Phases 1–5 once Phase 0 is done.
 
 Can proceed in parallel with the tracks above.
 
-- Generate and add the missing `/public/icon-192.png` and `/public/icon-512.png` referenced by [public/manifest.webmanifest](public/manifest.webmanifest), plus a real favicon.
-- Add a service worker that precaches the app shell and static assets (e.g. via Workbox or `next-pwa`) so repeat launches from the home screen don't require a full network round-trip.
-- Remove the unused `@supabase/ssr` dependency from [package.json](package.json) — no browser client, no cookie auth exists in the app.
-- Port [public/manifest.webmanifest](public/manifest.webmanifest) to `app/manifest.ts` for type safety.
-- Update the root metadata in [app/layout.tsx](app/layout.tsx) — currently still branded "Cycle Tracker" / "14-day hybrid fitness cycle tracker" from when this was fitness-only — to reflect all three modules.
+1. Generate and add the missing `/public/icon-192.png` and `/public/icon-512.png` referenced by [public/manifest.webmanifest](public/manifest.webmanifest), plus a real favicon.
+2. Add a service worker that precaches the app shell and static assets (e.g. via Workbox or `next-pwa`) so repeat launches from the home screen don't require a full network round-trip.
+3. Remove the unused `@supabase/ssr` dependency from [package.json](package.json) — no browser client, no cookie auth exists in the app.
+4. Port [public/manifest.webmanifest](public/manifest.webmanifest) to `app/manifest.ts` for type safety.
+5. Update the root metadata in [app/layout.tsx](app/layout.tsx) — currently still branded "Cycle Tracker" / "14-day hybrid fitness cycle tracker" from when this was fitness-only — to reflect all three modules.
 
 ## Phase 10 — Documentation and process (Low)
 
@@ -198,3 +204,4 @@ Can proceed in parallel with the tracks above.
 - Add `.DS_Store` to [.gitignore](.gitignore) and remove already-committed instances from the repo.
 - Add a minimal CI workflow (GitHub Actions or equivalent) running `npm run lint` and `npm run test` on push/PR, now that Phase 0.2 gives it something real to run.
 - Going forward, adopt descriptive commit messages (historical messages like `"Changes"` x6 are not worth rewriting, but new commits should follow a clear convention — e.g. `type: short description`).
+
