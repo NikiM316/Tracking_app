@@ -6,10 +6,12 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/features/core/components/Button";
 import { bulkInsertTransactions } from "@/features/finance/actions/transactions";
 import { parseCsvRows } from "@/features/finance/lib/csv";
+import { bulkInsertTransactionsSchema } from "@/features/finance/schemas";
 import type {
   AccountWithBalance,
   BulkImportTransactionRow,
 } from "@/features/finance/types";
+import { parseActionInput } from "@/lib/validation";
 
 type ImportCsvFormProps = {
   accounts: AccountWithBalance[];
@@ -103,8 +105,20 @@ export function ImportCsvForm({ accounts }: ImportCsvFormProps) {
       return;
     }
 
+    const parsed = parseActionInput(bulkInsertTransactionsSchema, {
+      accountId,
+      transactions: rows,
+    });
+    if (!parsed.ok) {
+      setImportError(parsed.error);
+      return;
+    }
+
     startTransition(async () => {
-      const result = await bulkInsertTransactions(accountId, rows);
+      const result = await bulkInsertTransactions(
+        parsed.data.accountId,
+        rows,
+      );
 
       if (result.error) {
         setImportError(result.error);

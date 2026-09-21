@@ -2,11 +2,11 @@ import { CashBalancesSection } from "@/features/finance/components/dashboard/Cas
 import { MonthlyActivityFeed } from "@/features/finance/components/dashboard/MonthlyActivityFeed";
 import { NetWorthSummary } from "@/features/finance/components/dashboard/NetWorthSummary";
 import { PortfolioHoldingsSection } from "@/features/finance/components/dashboard/PortfolioHoldingsSection";
-import { getAccounts } from "@/features/finance/actions/accounts";
-import { getCategories } from "@/features/finance/actions/categories";
-import { getPortfolioHoldings } from "@/features/finance/actions/investments";
-import { getPortfolios } from "@/features/finance/actions/portfolios";
-import { getMonthActivity } from "@/features/finance/actions/transactions";
+import { getAccounts } from "@/features/finance/queries/accounts";
+import { getCategories } from "@/features/finance/queries/categories";
+import { getPortfolioHoldings } from "@/features/finance/queries/investments";
+import { getPortfolios } from "@/features/finance/queries/portfolios";
+import { getMonthActivity } from "@/features/finance/queries/transactions";
 
 export const dynamic = "force-dynamic";
 

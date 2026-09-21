@@ -1,21 +1,10 @@
-"use server";
+import "server-only";
 
+import type { HistoryExerciseEntry, HistoryWorkoutEntry } from "@/features/fitness/types";
 import { getProgramDay } from "@/lib/program/cycle";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import type { Exercise, Set as DbSet, Workout } from "@/lib/supabase/types";
+import type { Exercise, Set as DbSet } from "@/lib/supabase/types";
 import { getPlaceholderUserId } from "@/lib/utils/placeholder-user";
-
-export type HistoryExerciseEntry = {
-  exercise: Exercise;
-  sets: DbSet[];
-  note: string | null;
-};
-
-export type HistoryWorkoutEntry = {
-  workout: Workout;
-  programLabel: string;
-  exercises: HistoryExerciseEntry[];
-};
 
 export async function getWorkoutHistory(): Promise<HistoryWorkoutEntry[]> {
   const supabase = createServerSupabaseClient();
@@ -57,7 +46,13 @@ export async function getWorkoutHistory(): Promise<HistoryWorkoutEntry[]> {
     throw new Error(`Failed to fetch notes: ${notesError.message}`);
   }
 
-  const exerciseIds = [...new Set((sets ?? []).map((set) => set.exercise_id))];
+  const exerciseIds = [
+    ...new Set(
+      (sets ?? [])
+        .map((set) => set.exercise_id)
+        .filter((exerciseId): exerciseId is string => exerciseId != null),
+    ),
+  ];
 
   let exercises: Exercise[] = [];
 
@@ -85,6 +80,7 @@ export async function getWorkoutHistory(): Promise<HistoryWorkoutEntry[]> {
 
   const setsByWorkout = new Map<string, DbSet[]>();
   for (const set of sets ?? []) {
+    if (set.workout_id == null) continue;
     const list = setsByWorkout.get(set.workout_id) ?? [];
     list.push(set);
     setsByWorkout.set(set.workout_id, list);
@@ -93,7 +89,11 @@ export async function getWorkoutHistory(): Promise<HistoryWorkoutEntry[]> {
   return workouts.map((workout) => {
     const workoutSets = setsByWorkout.get(workout.id) ?? [];
     const exerciseIdsForWorkout = [
-      ...new Set(workoutSets.map((set) => set.exercise_id)),
+      ...new Set(
+        workoutSets
+          .map((set) => set.exercise_id)
+          .filter((exerciseId): exerciseId is string => exerciseId != null),
+      ),
     ];
 
     const exerciseEntries: HistoryExerciseEntry[] = exerciseIdsForWorkout
@@ -113,7 +113,10 @@ export async function getWorkoutHistory(): Promise<HistoryWorkoutEntry[]> {
 
     return {
       workout,
-      programLabel: getProgramDay(workout.cycle_day)?.label ?? "Workout",
+      programLabel:
+        workout.cycle_day != null
+          ? (getProgramDay(workout.cycle_day)?.label ?? "Workout")
+          : "Workout",
       exercises: exerciseEntries,
     };
   });

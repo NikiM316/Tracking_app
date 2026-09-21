@@ -8,12 +8,14 @@ import { SegmentedControl } from "@/features/core/components/SegmentedControl";
 import { createTransaction } from "@/features/finance/actions/transactions";
 import { DateField } from "@/features/finance/components/forms/DateField";
 import { DecimalField } from "@/features/finance/components/forms/DecimalField";
+import { createTransactionSchema } from "@/features/finance/schemas";
 import { getTodayDateString, parseDecimal } from "@/features/finance/utils";
 import type { AccountWithBalance } from "@/features/finance/types";
 import type {
   FinanceCategory,
   FinanceTransactionType,
 } from "@/lib/supabase/finance-types";
+import { parseActionInput } from "@/lib/validation";
 
 type NewTransactionFormProps = {
   accounts: AccountWithBalance[];
@@ -72,28 +74,34 @@ export function NewTransactionForm({ accounts, categories }: NewTransactionFormP
 
     const selectedAccount = accounts.find((account) => account.id === accountId);
     const currency = selectedAccount?.currency ?? "EUR";
+    const payload =
+      type === "transfer"
+        ? {
+            type: "transfer" as const,
+            accountId,
+            transferAccountId,
+            amount: parsedAmount,
+            currency,
+            date,
+            notes: description.trim() || undefined,
+          }
+        : {
+            type,
+            accountId,
+            categoryId,
+            amount: parsedAmount,
+            currency,
+            date,
+            payee: description.trim() || undefined,
+          };
+    const parsed = parseActionInput(createTransactionSchema, payload);
+    if (!parsed.ok) {
+      setError(parsed.error);
+      return;
+    }
 
     startTransition(async () => {
-      const result =
-        type === "transfer"
-          ? await createTransaction({
-              type: "transfer",
-              accountId,
-              transferAccountId,
-              amount: parsedAmount,
-              currency,
-              date,
-              notes: description.trim() || undefined,
-            })
-          : await createTransaction({
-              type,
-              accountId,
-              categoryId,
-              amount: parsedAmount,
-              currency,
-              date,
-              payee: description.trim() || undefined,
-            });
+      const result = await createTransaction(parsed.data);
 
       if (result.error || !result.transaction) {
         setError(result.error ?? "Failed to create transaction.");

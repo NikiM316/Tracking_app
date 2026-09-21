@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { CycleDaySelector } from "@/features/fitness/components/workout/CycleDaySelector";
 import { WaterTracker } from "@/features/fitness/components/workout/WaterTracker";
-import type { TodayWorkoutData } from "@/features/fitness/actions/workout";
+import type { TodayWorkoutData } from "@/features/fitness/types";
 
 import { ActiveWorkoutView } from "./ActiveWorkoutView";
 import { CompletedWorkoutView } from "./CompletedWorkoutView";

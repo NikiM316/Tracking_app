@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { getTodayPageData } from "@/features/monk/actions/today";
+import { getTodayPageData } from "@/features/monk/queries/today";
 import { TodayPageSkeleton } from "@/features/monk/components/layout/TodayPageSkeleton";
 import { TodayView } from "@/features/monk/components/today/TodayView";
 

@@ -1,5 +1,5 @@
 import { CycleDayAccordion } from "@/features/fitness/components/cycle/CycleDayAccordion";
-import { getCycleOverviewData } from "@/features/fitness/actions/cycle";
+import { getCycleOverviewData } from "@/features/fitness/queries/cycle";
 
 export const dynamic = "force-dynamic";
 

@@ -1,6 +1,6 @@
 import type { LocalSet } from "@/features/fitness/components/workout/SetRow";
-import type { TodayWorkoutData } from "@/features/fitness/actions/workout";
-import type { Exercise, Set as DbSet } from "@/lib/supabase/types";
+import type { Exercise } from "@/lib/supabase/types";
+import type { TodayWorkoutData, WorkoutSetView } from "@/features/fitness/types";
 import { buildSmartWarmups } from "@/lib/utils/warmups";
 
 export const SAVE_DEBOUNCE_MS = 3000;
@@ -26,7 +26,7 @@ export function getRestSecondsForSet(
   return fallbackRestSeconds ?? null;
 }
 
-export function toLocalSet(set: DbSet): LocalSet {
+export function toLocalSet(set: WorkoutSetView): LocalSet {
   return {
     localId: set.id,
     id: set.id,
@@ -126,7 +126,7 @@ export function supportsSmartWarmups(exercise: Exercise): boolean {
 
 export function groupSetsByExercise(
   exercises: TodayWorkoutData["exercises"],
-  sets: DbSet[],
+  sets: WorkoutSetView[],
 ): Record<string, LocalSet[]> {
   const grouped: Record<string, LocalSet[]> = {};
 
@@ -135,6 +135,9 @@ export function groupSetsByExercise(
   }
 
   for (const set of sets) {
+    if (set.exercise_id == null) {
+      continue;
+    }
     if (!grouped[set.exercise_id]) {
       grouped[set.exercise_id] = [];
     }

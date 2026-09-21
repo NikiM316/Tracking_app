@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 
 import { getPlaceholderUserId } from "@/lib/utils/placeholder-user";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -32,4 +32,23 @@ export async function getCategories(
   }
 
   return data ?? [];
+}
+
+export async function getOwnedCategory(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  userId: string,
+  categoryId: string,
+): Promise<{ id: string; kind: FinanceCategoryKind } | null> {
+  const { data, error } = await supabase
+    .from("finance_categories")
+    .select("id, kind")
+    .eq("id", categoryId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
 }

@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 
-import type { ExerciseProgressPoint } from "@/features/fitness/actions/analytics";
+import type { ExerciseProgressPoint } from "@/features/fitness/types";
 import { formatRestDuration } from "@/lib/utils/format-rest";
 
 export type ChartPoint = ExerciseProgressPoint & { label: string };

@@ -2,7 +2,7 @@ import { Suspense } from "react";
 
 import { WorkoutForm } from "@/features/fitness/components/workout/WorkoutForm";
 import { TodayPageSkeleton } from "@/features/fitness/components/layout/TodayPageSkeleton";
-import { getTodayWorkoutData } from "@/features/fitness/actions/workout";
+import { getTodayWorkoutData } from "@/features/fitness/queries/workout";
 
 export const dynamic = "force-dynamic";
 

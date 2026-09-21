@@ -1,4 +1,4 @@
-import type { HistoryWorkoutEntry } from "@/features/fitness/actions/history";
+import type { HistoryWorkoutEntry } from "@/features/fitness/types";
 import {
   formatHistoryDate,
   formatSetCategory,

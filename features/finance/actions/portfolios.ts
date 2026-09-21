@@ -2,9 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getPlaceholderUserId } from "@/lib/utils/placeholder-user";
+import { createPortfolioSchema } from "@/features/finance/schemas";
 import type { CreatePortfolioInput } from "@/features/finance/types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getPlaceholderUserId } from "@/lib/utils/placeholder-user";
+import { parseActionInput } from "@/lib/validation";
 import type { FinancePortfolio } from "@/lib/supabase/finance-types";
 
 /**
@@ -15,15 +17,13 @@ export async function createPortfolio(
 ): Promise<
   { portfolio: FinancePortfolio; error?: undefined } | { portfolio: null; error: string }
 > {
-  const name = input.name.trim();
-  if (!name) {
-    return { portfolio: null, error: "Portfolio name is required." };
+  const parsed = parseActionInput(createPortfolioSchema, input);
+  if (!parsed.ok) {
+    return { portfolio: null, error: parsed.error };
   }
 
-  const baseCurrency = (input.baseCurrency ?? "EUR").trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(baseCurrency)) {
-    return { portfolio: null, error: "Currency must be a 3-letter ISO code (e.g. EUR)." };
-  }
+  const name = parsed.data.name;
+  const baseCurrency = parsed.data.baseCurrency ?? "EUR";
 
   const supabase = createServerSupabaseClient();
   const userId = getPlaceholderUserId();
@@ -44,25 +44,4 @@ export async function createPortfolio(
 
   revalidatePath("/finance");
   return { portfolio };
-}
-
-/**
- * Lists the current user's investment portfolios (active first by creation order).
- */
-export async function getPortfolios(): Promise<FinancePortfolio[]> {
-  const supabase = createServerSupabaseClient();
-  const userId = getPlaceholderUserId();
-
-  const { data, error } = await supabase
-    .from("finance_portfolios")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("is_archived", false)
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    throw new Error(`Failed to fetch portfolios: ${error.message}`);
-  }
-
-  return data ?? [];
 }

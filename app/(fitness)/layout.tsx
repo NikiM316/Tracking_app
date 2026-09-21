@@ -1,7 +1,7 @@
 import { AppHeader } from "@/features/core/components/AppHeader";
 import { AppShell } from "@/features/core/components/AppShell";
 import { BottomNav } from "@/features/core/components/BottomNav";
-import { getTodaysWorkout } from "@/features/fitness/actions/workout";
+import { getTodaysWorkout } from "@/features/fitness/queries/workout";
 import { FITNESS_NAV_ITEMS } from "@/features/fitness/components/layout/nav-items";
 import { getProgramDay } from "@/lib/program/cycle";
 
@@ -15,7 +15,7 @@ export default async function AppLayout({
 
   try {
     const todaysWorkout = await getTodaysWorkout();
-    cycleDay = todaysWorkout.cycle_day;
+    cycleDay = todaysWorkout.cycle_day ?? 1;
     headerLabel = getProgramDay(cycleDay)?.label ?? "Hybrid Cycle";
   } catch (error) {
     // Keep the gym shell (header + nav) up if a transient fetch still fails

@@ -29,8 +29,12 @@ function parseLocalDate(dateStr: string): Date {
   return new Date(`${dateStr}T00:00:00`);
 }
 
+function isSetCategory(value: string): value is SetCategory {
+  return Object.hasOwn(SET_CATEGORY_LABELS, value);
+}
+
 export function formatSetCategory(category: string): string {
-  return SET_CATEGORY_LABELS[category as SetCategory] ?? category;
+  return isSetCategory(category) ? SET_CATEGORY_LABELS[category] : category;
 }
 
 /** Manual format avoids SSR/client locale mismatches from toLocaleDateString. */

@@ -1,4 +1,4 @@
-import { getChallengePageData } from "@/features/monk/actions/challenge";
+import { getChallengePageData } from "@/features/monk/queries/challenge";
 import { ChallengeView } from "@/features/monk/components/challenge/ChallengeView";
 
 export const dynamic = "force-dynamic";

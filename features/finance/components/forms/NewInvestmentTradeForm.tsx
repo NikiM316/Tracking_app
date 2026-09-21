@@ -7,12 +7,17 @@ import { Button } from "@/features/core/components/Button";
 import { SegmentedControl } from "@/features/core/components/SegmentedControl";
 import { createInvestmentTransaction } from "@/features/finance/actions/investments";
 import { DecimalField } from "@/features/finance/components/forms/DecimalField";
+import {
+  createInvestmentTransactionSchema,
+  financeSecurityTypeSchema,
+} from "@/features/finance/schemas";
 import { parseDecimal } from "@/features/finance/utils";
 import type {
   FinanceInvestmentTxType,
   FinancePortfolio,
   FinanceSecurityType,
 } from "@/lib/supabase/finance-types";
+import { parseActionInput, parseWithSchema } from "@/lib/validation";
 
 type NewInvestmentTradeFormProps = {
   portfolios: FinancePortfolio[];
@@ -73,17 +78,24 @@ export function NewInvestmentTradeForm({ portfolios }: NewInvestmentTradeFormPro
 
     const selectedPortfolio = portfolios.find((portfolio) => portfolio.id === portfolioId);
 
+    const payload = {
+      portfolioId,
+      type,
+      symbol,
+      name: symbol.trim().toUpperCase(),
+      securityType,
+      quantity: parsedQuantity,
+      price: parsedPrice,
+      currency: selectedPortfolio?.base_currency,
+    };
+    const parsed = parseActionInput(createInvestmentTransactionSchema, payload);
+    if (!parsed.ok) {
+      setError(parsed.error);
+      return;
+    }
+
     startTransition(async () => {
-      const result = await createInvestmentTransaction({
-        portfolioId,
-        type,
-        symbol,
-        name: symbol.trim().toUpperCase(),
-        securityType,
-        quantity: parsedQuantity,
-        price: parsedPrice,
-        currency: selectedPortfolio?.base_currency,
-      });
+      const result = await createInvestmentTransaction(parsed.data);
 
       if (result.error || !result.transaction) {
         setError(result.error ?? "Failed to log trade.");
@@ -169,7 +181,10 @@ export function NewInvestmentTradeForm({ portfolios }: NewInvestmentTradeFormPro
           id="trade-security-type"
           className={fieldClassName}
           value={securityType}
-          onChange={(event) => setSecurityType(event.target.value as FinanceSecurityType)}
+          onChange={(event) => {
+            const next = parseWithSchema(financeSecurityTypeSchema, event.target.value);
+            if (next) setSecurityType(next);
+          }}
         >
           {SECURITY_TYPES.map((option) => (
             <option key={option.value} value={option.value}>

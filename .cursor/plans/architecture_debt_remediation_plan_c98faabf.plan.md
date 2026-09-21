@@ -31,7 +31,7 @@ todos:
     status: completed
   - id: type-safety-validation
     content: "Phase 7: Regenerate DB types from live schema, introduce Zod validation for server actions, remove unsafe casts"
-    status: pending
+    status: completed
   - id: schema-cleanup
     content: "Phase 8: Decide keep/implement/deprecate for unused schema surface (finance budgets/fx/prices, monk goals/commitments/app_usage/overrides, zone_2)"
     status: pending

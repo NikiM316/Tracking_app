@@ -4,7 +4,7 @@ import { ExerciseNotesInput } from "@/features/fitness/components/workout/Exerci
 import { PreviousSessionGhost } from "@/features/fitness/components/workout/PreviousSessionGhost";
 import { SetList } from "@/features/fitness/components/workout/SetList";
 import type { LocalSet } from "@/features/fitness/components/workout/SetRow";
-import type { PreviousExerciseSession } from "@/features/fitness/actions/workout";
+import type { PreviousExerciseSession } from "@/features/fitness/types";
 import type { Exercise } from "@/lib/supabase/types";
 
 type ExerciseBlockProps = {

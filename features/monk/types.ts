@@ -8,6 +8,12 @@ import type {
   StudyPlanItem,
 } from "@/lib/supabase/monk-types";
 import type { ChallengeStreaks, DayScore } from "@/features/monk/lib/accountability";
+import type {
+  DayReflectionInput,
+  StartChallengeInput,
+} from "@/features/monk/schemas";
+
+export type { DayReflectionInput, StartChallengeInput };
 
 export type HabitDraft = {
   name: string;
@@ -90,11 +96,6 @@ export type ChallengePageData = {
 
 export type HabitPageData = {
   habits: MonkHabit[];
-};
-
-export type StartChallengeInput = {
-  socialMediaLimitMinutes: number;
-  habits?: HabitDraft[];
 };
 
 export type ActionResult = { error: string } | { ok: true };

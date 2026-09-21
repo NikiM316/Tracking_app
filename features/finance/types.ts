@@ -1,23 +1,27 @@
 import type {
+  CreateAccountInput as SchemaCreateAccountInput,
+  UpdateTransactionInput,
+} from "@/features/finance/schemas";
+import type {
   FinanceAccount,
-  FinanceAccountType,
-  FinanceInvestmentTxType,
   FinanceSecurityType,
-  FinanceTransaction,
   FinanceTransactionType,
 } from "@/lib/supabase/finance-types";
+
+export type {
+  BulkImportTransactionRow,
+  CreateInvestmentTransactionInput,
+  CreatePortfolioInput,
+  CreateSecurityInput,
+  CreateTransactionInput,
+} from "@/features/finance/schemas";
 
 export type AccountWithBalance = FinanceAccount & {
   /** opening_balance plus the signed sum of all cashflow transactions. */
   balance: number;
 };
 
-export type CreateAccountInput = {
-  name: string;
-  accountType: FinanceAccountType;
-  currency?: string;
-  openingBalance?: number;
-};
+export type CreateAccountInput = SchemaCreateAccountInput;
 
 export type RecentTransaction = {
   id: string;
@@ -33,63 +37,7 @@ export type RecentTransaction = {
   transferAccountName: string | null;
 };
 
-export type CreateTransactionInput =
-  | {
-      type: "expense" | "income";
-      accountId: string;
-      categoryId: string;
-      amount: number;
-      currency?: string;
-      date?: string;
-      payee?: string;
-      notes?: string;
-    }
-  | {
-      type: "transfer";
-      accountId: string;
-      transferAccountId: string;
-      amount: number;
-      currency?: string;
-      date?: string;
-      notes?: string;
-    };
-
-export type UpdateTransactionData = Partial<
-  Pick<FinanceTransaction, "date" | "category_id" | "amount">
->;
-
-export type BulkImportTransactionRow = {
-  /** ISO date string (YYYY-MM-DD). */
-  date: string;
-  /** Signed amount: positive = income, negative = expense. */
-  amount: number;
-  description: string;
-};
-
-export type CreatePortfolioInput = {
-  name: string;
-  baseCurrency?: string;
-};
-
-export type CreateSecurityInput = {
-  symbol: string;
-  name: string;
-  securityType: FinanceSecurityType;
-  currency?: string;
-};
-
-export type CreateInvestmentTransactionInput = {
-  portfolioId: string;
-  type: Extract<FinanceInvestmentTxType, "buy" | "sell">;
-  symbol: string;
-  name?: string;
-  securityType: FinanceSecurityType;
-  quantity: number;
-  price: number;
-  currency?: string;
-  tradeDate?: string;
-  notes?: string;
-};
+export type UpdateTransactionData = Omit<UpdateTransactionInput, "id">;
 
 export type HoldingWithDetails = {
   id: string;

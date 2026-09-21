@@ -2,27 +2,21 @@
 
 import { revalidatePath } from "next/cache";
 
+import { listHabits, revalidateMonkPaths } from "@/features/monk/lib/challenge-ops";
+import type { ActionResult } from "@/features/monk/types";
 import {
-  ensureSettings,
-  listHabits,
-  revalidateMonkPaths,
-} from "@/features/monk/lib/challenge-ops";
-import type { ActionResult, HabitPageData } from "@/features/monk/types";
+  createHabitSchema,
+  reorderHabitsSchema,
+  updateHabitSchema,
+} from "@/features/monk/schemas";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getPlaceholderUserId } from "@/lib/utils/placeholder-user";
+import { parseActionInput } from "@/lib/validation";
 
 function touchMonkPaths() {
   for (const path of revalidateMonkPaths()) {
     revalidatePath(path);
   }
-}
-
-export async function getHabitsPageData(): Promise<HabitPageData> {
-  const supabase = createServerSupabaseClient();
-  const userId = getPlaceholderUserId();
-  await ensureSettings(supabase, userId);
-  const habits = await listHabits(supabase, userId);
-  return { habits };
 }
 
 export async function createHabit(input: {
@@ -31,9 +25,9 @@ export async function createHabit(input: {
   targetValue: number | null;
   targetUnit: string | null;
 }): Promise<ActionResult> {
-  const name = input.name.trim();
-  if (!name) {
-    return { error: "Habit name is required." };
+  const parsed = parseActionInput(createHabitSchema, input);
+  if (!parsed.ok) {
+    return { error: parsed.error };
   }
 
   const supabase = createServerSupabaseClient();
@@ -44,10 +38,10 @@ export async function createHabit(input: {
 
   const { error } = await supabase.from("monk_habits").insert({
     user_id: userId,
-    name,
-    is_mandatory: input.isMandatory,
-    target_value: input.targetValue,
-    target_unit: input.targetUnit?.trim() || null,
+    name: parsed.data.name,
+    is_mandatory: parsed.data.isMandatory,
+    target_value: parsed.data.targetValue,
+    target_unit: parsed.data.targetUnit,
     sort_order: nextOrder,
   });
 
@@ -67,6 +61,11 @@ export async function updateHabit(input: {
   targetValue?: number | null;
   targetUnit?: string | null;
 }): Promise<ActionResult> {
+  const parsed = parseActionInput(updateHabitSchema, input);
+  if (!parsed.ok) {
+    return { error: parsed.error };
+  }
+
   const supabase = createServerSupabaseClient();
   const patch: {
     name?: string;
@@ -76,34 +75,30 @@ export async function updateHabit(input: {
     target_unit?: string | null;
   } = {};
 
-  if (input.name !== undefined) {
-    const name = input.name.trim();
-    if (!name) {
-      return { error: "Habit name is required." };
-    }
-    patch.name = name;
+  if (parsed.data.name !== undefined) {
+    patch.name = parsed.data.name;
   }
 
-  if (input.isMandatory !== undefined) {
-    patch.is_mandatory = input.isMandatory;
+  if (parsed.data.isMandatory !== undefined) {
+    patch.is_mandatory = parsed.data.isMandatory;
   }
 
-  if (input.isActive !== undefined) {
-    patch.is_active = input.isActive;
+  if (parsed.data.isActive !== undefined) {
+    patch.is_active = parsed.data.isActive;
   }
 
-  if (input.targetValue !== undefined) {
-    patch.target_value = input.targetValue;
+  if (parsed.data.targetValue !== undefined) {
+    patch.target_value = parsed.data.targetValue;
   }
 
-  if (input.targetUnit !== undefined) {
-    patch.target_unit = input.targetUnit?.trim() || null;
+  if (parsed.data.targetUnit !== undefined) {
+    patch.target_unit = parsed.data.targetUnit;
   }
 
   const { error } = await supabase
     .from("monk_habits")
     .update(patch)
-    .eq("id", input.habitId);
+    .eq("id", parsed.data.habitId);
 
   if (error) {
     return { error: error.message };
@@ -114,9 +109,14 @@ export async function updateHabit(input: {
 }
 
 export async function reorderHabits(orderedIds: string[]): Promise<ActionResult> {
+  const parsed = parseActionInput(reorderHabitsSchema, orderedIds);
+  if (!parsed.ok) {
+    return { error: parsed.error };
+  }
+
   const supabase = createServerSupabaseClient();
   const results = await Promise.all(
-    orderedIds.map((id, index) =>
+    parsed.data.map((id, index) =>
       supabase.from("monk_habits").update({ sort_order: index }).eq("id", id),
     ),
   );
