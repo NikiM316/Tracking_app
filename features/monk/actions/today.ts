@@ -2,41 +2,32 @@
 
 import { revalidatePath } from "next/cache";
 
-import {
-  computeChallengeStreaks,
-  isDayLocked,
-  nextStartDate,
-  previousBestStreak,
-  scoreDay,
-} from "@/features/monk/lib/accountability";
+import { isDayLocked } from "@/features/monk/lib/accountability";
 import {
   completeStudyWeek,
-  ensureSettings,
-  ensureTodayDay,
   finalizeDayAndMaybeReset,
-  getActiveStudyPlan,
-  listChallenges,
-  listDaysForChallenge,
-  listHabitLogs,
-  listHabits,
-  listStudyItems,
-  listStudyWeeks,
   listTasks,
   lockedError,
-  prepareActiveChallenge,
   toggleStudyItem,
 } from "@/features/monk/lib/challenge-ops";
-import { getTodayInTimezone } from "@/features/monk/lib/dates";
-import type {
-  ActionResult,
-  ClosedChallengeSummary,
-  MonkHabitLogView,
-  StudyWeekPanel,
-  TodayPageData,
-} from "@/features/monk/types";
-import type { MonkChallenge, MonkDay, MonkHabit } from "@/lib/supabase/monk-types";
+import type { ActionResult, DayReflectionInput } from "@/features/monk/types";
+import {
+  addStudyItemAsTaskSchema,
+  addTaskSchema,
+  completeStudyModuleSchema,
+  deleteTaskSchema,
+  finalizeTodaySchema,
+  reorderTasksSchema,
+  setLimitSchema,
+  setMinutesSchema,
+  toggleHabitLogSchema,
+  toggleStudyPlanItemSchema,
+  updateTaskSchema,
+} from "@/features/monk/schemas";
+import type { MonkDay } from "@/lib/supabase/monk-types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getPlaceholderUserId } from "@/lib/utils/placeholder-user";
+import { parseActionInput } from "@/lib/validation";
 
 type MonkPath = "/monk" | "/monk/challenge" | "/monk/habits";
 
@@ -44,171 +35,6 @@ function touchMonkPaths(...paths: MonkPath[]) {
   for (const path of paths) {
     revalidatePath(path);
   }
-}
-
-function toHabitLogViews(
-  logs: Awaited<ReturnType<typeof listHabitLogs>>,
-  habits: MonkHabit[],
-): MonkHabitLogView[] {
-  const nameById = new Map(habits.map((habit) => [habit.id, habit.name]));
-  return [...logs]
-    .map((log) => ({
-      ...log,
-      name: nameById.get(log.habit_id) ?? "Habit",
-    }))
-    .sort((a, b) => {
-      const orderA = habits.findIndex((habit) => habit.id === a.habit_id);
-      const orderB = habits.findIndex((habit) => habit.id === b.habit_id);
-      return (orderA === -1 ? 999 : orderA) - (orderB === -1 ? 999 : orderB);
-    });
-}
-
-function closedSummary(
-  challenge: MonkChallenge,
-  today: string,
-): ClosedChallengeSummary {
-  const canStartOn = nextStartDate({
-    today,
-    lastEndedOn: challenge.ended_on,
-  });
-
-  return {
-    challenge,
-    canStartOn,
-    canStartNow: today >= canStartOn,
-  };
-}
-
-async function buildStudyWeekPanel(
-  supabase: ReturnType<typeof createServerSupabaseClient>,
-  userId: string,
-): Promise<StudyWeekPanel | null> {
-  const plan = await getActiveStudyPlan(supabase, userId);
-  if (!plan) {
-    return null;
-  }
-
-  const weeks = await listStudyWeeks(supabase, plan.id);
-  if (weeks.length === 0) {
-    return null;
-  }
-
-  const current = weeks.find((week) => !week.is_completed);
-  const totalWeeks = weeks.length;
-
-  if (!current) {
-    const lastWeek = weeks[weeks.length - 1];
-    return {
-      planId: plan.id,
-      planTitle: plan.title,
-      weekId: lastWeek.id,
-      weekNumber: lastWeek.week_number,
-      totalWeeks,
-      title: lastWeek.title,
-      focus: lastWeek.focus,
-      buildTarget: lastWeek.build_target,
-      items: [],
-      completed: true,
-    };
-  }
-
-  const items = await listStudyItems(supabase, current.id);
-
-  return {
-    planId: plan.id,
-    planTitle: plan.title,
-    weekId: current.id,
-    weekNumber: current.week_number,
-    totalWeeks,
-    title: current.title,
-    focus: current.focus,
-    buildTarget: current.build_target,
-    items,
-    completed: false,
-  };
-}
-
-function inactiveTodayState(
-  settings: Awaited<ReturnType<typeof ensureSettings>>,
-  habits: MonkHabit[],
-  challenge: MonkChallenge | null,
-  today: string,
-): TodayPageData {
-  if (!challenge) {
-    return { mode: "setup", settings, habits };
-  }
-
-  const lastChallenge = closedSummary(challenge, today);
-  if (challenge.status === "completed") {
-    return { mode: "completed", settings, habits, lastChallenge };
-  }
-
-  return { mode: "reset_required", settings, habits, lastChallenge };
-}
-
-export async function getTodayPageData(): Promise<TodayPageData> {
-  const supabase = createServerSupabaseClient();
-  const userId = getPlaceholderUserId();
-  const settings = await ensureSettings(supabase, userId);
-  const today = getTodayInTimezone(settings.timezone);
-  const active = await prepareActiveChallenge(supabase, userId, settings);
-  const [habits, attempts] = await Promise.all([
-    listHabits(supabase, userId),
-    listChallenges(supabase, userId),
-  ]);
-
-  if (!active || active.status !== "active") {
-    return inactiveTodayState(
-      settings,
-      habits,
-      active ?? attempts[0] ?? null,
-      today,
-    );
-  }
-
-  const day = await ensureTodayDay(supabase, {
-    userId,
-    challenge: active,
-    today,
-  });
-
-  if (!day) {
-    return inactiveTodayState(settings, habits, active, today);
-  }
-
-  const [logs, tasks, days] = await Promise.all([
-    listHabitLogs(supabase, day.id),
-    listTasks(supabase, day.id),
-    listDaysForChallenge(supabase, active.id),
-  ]);
-
-  const score = scoreDay({
-    habits: logs,
-    tasks,
-    socialMediaLimitMinutes: day.social_media_limit_minutes,
-    socialMediaActualMinutes: day.social_media_actual_minutes,
-    gamingLimitMinutes: day.gaming_limit_minutes,
-    gamingActualMinutes: day.gaming_actual_minutes,
-    maxMandatoryFailuresAllowed: active.max_mandatory_failures_allowed,
-  });
-
-  return {
-    mode: "today",
-    settings,
-    challenge: active,
-    day,
-    isLocked: isDayLocked(day),
-    habits: toHabitLogViews(logs, habits),
-    tasks,
-    score,
-    streaks: computeChallengeStreaks({
-      challenge: active,
-      days,
-      todayDayNumber: day.day_number,
-      previousBest: previousBestStreak(attempts),
-    }),
-    studyWeek: await buildStudyWeekPanel(supabase, userId),
-  };
 }
 
 async function loadUnlockedDay(dayId: string): Promise<
@@ -237,11 +63,16 @@ export async function toggleHabitLog(
   logId: string,
   completed: boolean,
 ): Promise<ActionResult> {
+  const parsed = parseActionInput(toggleHabitLogSchema, { logId, completed });
+  if (!parsed.ok) {
+    return { error: parsed.error };
+  }
+
   const supabase = createServerSupabaseClient();
   const { data: log, error: logError } = await supabase
     .from("monk_habit_logs")
     .select("*")
-    .eq("id", logId)
+    .eq("id", parsed.data.logId)
     .single();
 
   if (logError || !log) {
@@ -256,10 +87,10 @@ export async function toggleHabitLog(
   const { error } = await unlocked.supabase
     .from("monk_habit_logs")
     .update({
-      is_completed: completed,
-      completed_at: completed ? new Date().toISOString() : null,
+      is_completed: parsed.data.completed,
+      completed_at: parsed.data.completed ? new Date().toISOString() : null,
     })
-    .eq("id", logId);
+    .eq("id", parsed.data.logId);
 
   if (error) {
     return { error: error.message };
@@ -275,27 +106,27 @@ export async function addTask(input: {
   isMandatory?: boolean;
   studyItemId?: string | null;
 }): Promise<ActionResult> {
-  const title = input.title.trim();
-  if (!title) {
-    return { error: "Task title is required." };
+  const parsed = parseActionInput(addTaskSchema, input);
+  if (!parsed.ok) {
+    return { error: parsed.error };
   }
 
-  const unlocked = await loadUnlockedDay(input.dayId);
+  const unlocked = await loadUnlockedDay(parsed.data.dayId);
   if ("error" in unlocked) {
     return unlocked;
   }
 
-  const tasks = await listTasks(unlocked.supabase, input.dayId);
+  const tasks = await listTasks(unlocked.supabase, parsed.data.dayId);
   const nextOrder =
     tasks.reduce((max, task) => Math.max(max, task.sort_order), -1) + 1;
 
   const { error } = await unlocked.supabase.from("monk_tasks").insert({
-    day_id: input.dayId,
+    day_id: parsed.data.dayId,
     user_id: unlocked.day.user_id,
-    title,
-    is_mandatory: input.isMandatory ?? false,
+    title: parsed.data.title,
+    is_mandatory: parsed.data.isMandatory ?? false,
     sort_order: nextOrder,
-    study_item_id: input.studyItemId ?? null,
+    study_item_id: parsed.data.studyItemId ?? null,
   });
 
   if (error) {
@@ -312,11 +143,16 @@ export async function updateTask(input: {
   isMandatory?: boolean;
   isCompleted?: boolean;
 }): Promise<ActionResult> {
+  const parsed = parseActionInput(updateTaskSchema, input);
+  if (!parsed.ok) {
+    return { error: parsed.error };
+  }
+
   const supabase = createServerSupabaseClient();
   const { data: task, error: taskError } = await supabase
     .from("monk_tasks")
     .select("*")
-    .eq("id", input.taskId)
+    .eq("id", parsed.data.taskId)
     .single();
 
   if (taskError || !task) {
@@ -335,27 +171,23 @@ export async function updateTask(input: {
     completed_at?: string | null;
   } = {};
 
-  if (input.title !== undefined) {
-    const title = input.title.trim();
-    if (!title) {
-      return { error: "Task title is required." };
-    }
-    patch.title = title;
+  if (parsed.data.title !== undefined) {
+    patch.title = parsed.data.title;
   }
 
-  if (input.isMandatory !== undefined) {
-    patch.is_mandatory = input.isMandatory;
+  if (parsed.data.isMandatory !== undefined) {
+    patch.is_mandatory = parsed.data.isMandatory;
   }
 
-  if (input.isCompleted !== undefined) {
-    patch.is_completed = input.isCompleted;
-    patch.completed_at = input.isCompleted ? new Date().toISOString() : null;
+  if (parsed.data.isCompleted !== undefined) {
+    patch.is_completed = parsed.data.isCompleted;
+    patch.completed_at = parsed.data.isCompleted ? new Date().toISOString() : null;
   }
 
   const { error } = await unlocked.supabase
     .from("monk_tasks")
     .update(patch)
-    .eq("id", input.taskId);
+    .eq("id", parsed.data.taskId);
 
   if (error) {
     return { error: error.message };
@@ -366,11 +198,16 @@ export async function updateTask(input: {
 }
 
 export async function deleteTask(taskId: string): Promise<ActionResult> {
+  const parsed = parseActionInput(deleteTaskSchema, { taskId });
+  if (!parsed.ok) {
+    return { error: parsed.error };
+  }
+
   const supabase = createServerSupabaseClient();
   const { data: task, error: taskError } = await supabase
     .from("monk_tasks")
     .select("*")
-    .eq("id", taskId)
+    .eq("id", parsed.data.taskId)
     .single();
 
   if (taskError || !task) {
@@ -385,7 +222,7 @@ export async function deleteTask(taskId: string): Promise<ActionResult> {
   const { error } = await unlocked.supabase
     .from("monk_tasks")
     .delete()
-    .eq("id", taskId);
+    .eq("id", parsed.data.taskId);
 
   if (error) {
     return { error: error.message };
@@ -399,13 +236,18 @@ export async function reorderTasks(
   dayId: string,
   orderedIds: string[],
 ): Promise<ActionResult> {
-  const unlocked = await loadUnlockedDay(dayId);
+  const parsed = parseActionInput(reorderTasksSchema, { dayId, orderedIds });
+  if (!parsed.ok) {
+    return { error: parsed.error };
+  }
+
+  const unlocked = await loadUnlockedDay(parsed.data.dayId);
   if ("error" in unlocked) {
     return unlocked;
   }
 
   const results = await Promise.all(
-    orderedIds.map((id, index) =>
+    parsed.data.orderedIds.map((id, index) =>
       unlocked.supabase.from("monk_tasks").update({ sort_order: index }).eq("id", id),
     ),
   );
@@ -422,20 +264,21 @@ export async function setSocialMediaMinutes(
   dayId: string,
   minutes: number | null,
 ): Promise<ActionResult> {
-  if (minutes !== null && (minutes < 0 || !Number.isFinite(minutes))) {
-    return { error: "Minutes must be zero or more." };
+  const parsed = parseActionInput(setMinutesSchema, { dayId, minutes });
+  if (!parsed.ok) {
+    return { error: parsed.error };
   }
 
-  const unlocked = await loadUnlockedDay(dayId);
+  const unlocked = await loadUnlockedDay(parsed.data.dayId);
   if ("error" in unlocked) {
     return unlocked;
   }
 
-  const rounded = minutes === null ? null : Math.round(minutes);
+  const rounded = parsed.data.minutes === null ? null : Math.round(parsed.data.minutes);
   const { error } = await unlocked.supabase
     .from("monk_days")
     .update({ social_media_actual_minutes: rounded })
-    .eq("id", dayId);
+    .eq("id", parsed.data.dayId);
 
   if (error) {
     return { error: error.message };
@@ -449,20 +292,21 @@ export async function setSocialMediaLimit(
   dayId: string,
   minutes: number,
 ): Promise<ActionResult> {
-  if (!Number.isFinite(minutes) || minutes < 0) {
-    return { error: "Limit must be zero or more." };
+  const parsed = parseActionInput(setLimitSchema, { dayId, minutes });
+  if (!parsed.ok) {
+    return { error: parsed.error };
   }
 
-  const unlocked = await loadUnlockedDay(dayId);
+  const unlocked = await loadUnlockedDay(parsed.data.dayId);
   if ("error" in unlocked) {
     return unlocked;
   }
 
-  const rounded = Math.round(minutes);
+  const rounded = Math.round(parsed.data.minutes);
   const { error: dayError } = await unlocked.supabase
     .from("monk_days")
     .update({ social_media_limit_minutes: rounded })
-    .eq("id", dayId);
+    .eq("id", parsed.data.dayId);
 
   if (dayError) {
     return { error: dayError.message };
@@ -491,32 +335,25 @@ export async function setSocialMediaLimit(
   return { ok: true };
 }
 
-function validateMinutes(minutes: number | null, label: string): ActionResult | null {
-  if (minutes !== null && (minutes < 0 || !Number.isFinite(minutes))) {
-    return { error: `${label} must be zero or more.` };
-  }
-  return null;
-}
-
 export async function setGamingMinutes(
   dayId: string,
   minutes: number | null,
 ): Promise<ActionResult> {
-  const invalid = validateMinutes(minutes, "Minutes");
-  if (invalid) {
-    return invalid;
+  const parsed = parseActionInput(setMinutesSchema, { dayId, minutes });
+  if (!parsed.ok) {
+    return { error: parsed.error };
   }
 
-  const unlocked = await loadUnlockedDay(dayId);
+  const unlocked = await loadUnlockedDay(parsed.data.dayId);
   if ("error" in unlocked) {
     return unlocked;
   }
 
-  const rounded = minutes === null ? null : Math.round(minutes);
+  const rounded = parsed.data.minutes === null ? null : Math.round(parsed.data.minutes);
   const { error } = await unlocked.supabase
     .from("monk_days")
     .update({ gaming_actual_minutes: rounded })
-    .eq("id", dayId);
+    .eq("id", parsed.data.dayId);
 
   if (error) {
     return { error: error.message };
@@ -530,20 +367,20 @@ export async function setGamingLimit(
   dayId: string,
   minutes: number,
 ): Promise<ActionResult> {
-  const invalid = validateMinutes(minutes, "Limit");
-  if (invalid) {
-    return invalid;
+  const parsed = parseActionInput(setLimitSchema, { dayId, minutes });
+  if (!parsed.ok) {
+    return { error: parsed.error };
   }
 
-  const unlocked = await loadUnlockedDay(dayId);
+  const unlocked = await loadUnlockedDay(parsed.data.dayId);
   if ("error" in unlocked) {
     return unlocked;
   }
 
   const { error } = await unlocked.supabase
     .from("monk_days")
-    .update({ gaming_limit_minutes: Math.round(minutes) })
-    .eq("id", dayId);
+    .update({ gaming_limit_minutes: Math.round(parsed.data.minutes) })
+    .eq("id", parsed.data.dayId);
 
   if (error) {
     return { error: error.message };
@@ -559,12 +396,12 @@ export async function addStudyItemAsTask(input: {
   isMandatory: boolean;
   todayTarget: string;
 }): Promise<ActionResult> {
-  const todayTarget = input.todayTarget.trim();
-  if (!todayTarget) {
-    return { error: "Set today's target before adding." };
+  const parsed = parseActionInput(addStudyItemAsTaskSchema, input);
+  if (!parsed.ok) {
+    return { error: parsed.error };
   }
 
-  const unlocked = await loadUnlockedDay(input.dayId);
+  const unlocked = await loadUnlockedDay(parsed.data.dayId);
   if ("error" in unlocked) {
     return unlocked;
   }
@@ -572,7 +409,7 @@ export async function addStudyItemAsTask(input: {
   const { data: item, error: itemError } = await unlocked.supabase
     .from("study_plan_items")
     .select("*")
-    .eq("id", input.studyItemId)
+    .eq("id", parsed.data.studyItemId)
     .single();
 
   if (itemError || !item) {
@@ -580,10 +417,10 @@ export async function addStudyItemAsTask(input: {
   }
 
   return addTask({
-    dayId: input.dayId,
-    title: `${item.title}: ${todayTarget}`,
-    isMandatory: input.isMandatory,
-    studyItemId: input.studyItemId,
+    dayId: parsed.data.dayId,
+    title: `${item.title}: ${parsed.data.todayTarget}`,
+    isMandatory: parsed.data.isMandatory,
+    studyItemId: parsed.data.studyItemId,
   });
 }
 
@@ -591,11 +428,16 @@ export async function toggleStudyPlanItem(
   itemId: string,
   completed: boolean,
 ): Promise<ActionResult> {
+  const parsed = parseActionInput(toggleStudyPlanItemSchema, { itemId, completed });
+  if (!parsed.ok) {
+    return { error: parsed.error };
+  }
+
   const supabase = createServerSupabaseClient();
   const userId = getPlaceholderUserId();
 
   try {
-    await toggleStudyItem(supabase, userId, itemId, completed);
+    await toggleStudyItem(supabase, userId, parsed.data.itemId, parsed.data.completed);
   } catch (updateError) {
     return {
       error:
@@ -610,11 +452,16 @@ export async function toggleStudyPlanItem(
 }
 
 export async function completeStudyModule(weekId: string): Promise<ActionResult> {
+  const parsed = parseActionInput(completeStudyModuleSchema, { weekId });
+  if (!parsed.ok) {
+    return { error: parsed.error };
+  }
+
   const supabase = createServerSupabaseClient();
   const userId = getPlaceholderUserId();
 
   try {
-    await completeStudyWeek(supabase, userId, weekId);
+    await completeStudyWeek(supabase, userId, parsed.data.weekId);
   } catch (completeError) {
     return {
       error:
@@ -636,22 +483,20 @@ function optionalText(value: string | null | undefined): string | null {
   return trimmed.length === 0 ? null : trimmed;
 }
 
-export type DayReflectionInput = {
-  accomplished?: string | null;
-  failedToDo?: string | null;
-  whyFailed?: string | null;
-  improveTomorrow?: string | null;
-};
-
 export async function finalizeToday(
   dayId: string,
   reflection?: DayReflectionInput,
 ): Promise<ActionResult> {
+  const parsed = parseActionInput(finalizeTodaySchema, { dayId, reflection });
+  if (!parsed.ok) {
+    return { error: parsed.error };
+  }
+
   const supabase = createServerSupabaseClient();
   const { data: day, error } = await supabase
     .from("monk_days")
     .select("*")
-    .eq("id", dayId)
+    .eq("id", parsed.data.dayId)
     .single();
 
   if (error || !day) {
@@ -678,10 +523,10 @@ export async function finalizeToday(
       challenge,
       source: "manual",
       reflection: {
-        accomplished: optionalText(reflection?.accomplished),
-        failed_to_do: optionalText(reflection?.failedToDo),
-        why_failed: optionalText(reflection?.whyFailed),
-        improve_tomorrow: optionalText(reflection?.improveTomorrow),
+        accomplished: optionalText(parsed.data.reflection?.accomplished),
+        failed_to_do: optionalText(parsed.data.reflection?.failedToDo),
+        why_failed: optionalText(parsed.data.reflection?.whyFailed),
+        improve_tomorrow: optionalText(parsed.data.reflection?.improveTomorrow),
       },
     });
   } catch (finalizeError) {

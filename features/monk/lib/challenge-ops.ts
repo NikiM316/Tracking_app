@@ -12,6 +12,7 @@ import type {
   StudyPlanItem,
   StudyPlanWeek,
 } from "@/lib/supabase/monk-types";
+import type { Json } from "@/lib/supabase/database.generated";
 import {
   DEFAULT_GAMING_LIMIT_MINUTES,
   isDayLocked,
@@ -738,11 +739,13 @@ export async function catchUpMissedDays(
     dayUpdates.length > 0
   ) {
     const { error } = await supabase.rpc("catch_up_missed_days_tx", {
-      payload: {
-        missing_days: missingDaysToInsert,
-        habit_logs: habitLogsToInsert,
-        day_updates: dayUpdates,
-      },
+      payload: JSON.parse(
+        JSON.stringify({
+          missing_days: missingDaysToInsert,
+          habit_logs: habitLogsToInsert,
+          day_updates: dayUpdates,
+        } satisfies CatchUpMissedDaysPayload),
+      ) as Json,
     });
 
     if (error) {

@@ -1,24 +1,9 @@
-"use server";
+import "server-only";
 
+import type { CycleOverviewData } from "@/features/fitness/types";
 import { getOrCreateTodayWorkout } from "@/features/fitness/lib/today-workout";
 import { CYCLE_PROGRAM, getProgramDay } from "@/lib/program/cycle";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-
-export type CycleExercise = {
-  slug: string;
-  name: string;
-};
-
-export type CycleDayOverview = {
-  day: number;
-  label: string;
-  exercises: CycleExercise[];
-};
-
-export type CycleOverviewData = {
-  currentCycleDay: number;
-  days: CycleDayOverview[];
-};
 
 function formatSlugAsName(slug: string): string {
   return slug
@@ -71,7 +56,7 @@ export async function getCycleOverviewData(): Promise<CycleOverviewData> {
   const todaysWorkout = await getOrCreateTodayWorkout();
 
   return {
-    currentCycleDay: todaysWorkout.cycle_day,
+    currentCycleDay: todaysWorkout.cycle_day ?? 1,
     days,
   };
 }

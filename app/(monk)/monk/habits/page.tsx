@@ -1,4 +1,4 @@
-import { getHabitsPageData } from "@/features/monk/actions/habits";
+import { getHabitsPageData } from "@/features/monk/queries/habits";
 import { HabitsManager } from "@/features/monk/components/habits/HabitsManager";
 
 export const dynamic = "force-dynamic";

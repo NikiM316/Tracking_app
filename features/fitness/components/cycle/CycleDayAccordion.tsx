@@ -1,4 +1,4 @@
-import type { CycleDayOverview } from "@/features/fitness/actions/cycle";
+import type { CycleDayOverview } from "@/features/fitness/types";
 
 type CycleDayAccordionProps = {
   days: CycleDayOverview[];

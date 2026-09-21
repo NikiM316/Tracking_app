@@ -5,6 +5,8 @@ import { useState, useTransition } from "react";
 
 import { Button } from "@/features/core/components/Button";
 import { createPortfolio } from "@/features/finance/actions/portfolios";
+import { createPortfolioSchema } from "@/features/finance/schemas";
+import { parseActionInput } from "@/lib/validation";
 
 const fieldClassName =
   "min-h-12 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-base text-zinc-50 outline-none focus:border-emerald-500";
@@ -22,8 +24,14 @@ export function NewPortfolioForm() {
     event.preventDefault();
     setError(null);
 
+    const parsed = parseActionInput(createPortfolioSchema, { name, baseCurrency });
+    if (!parsed.ok) {
+      setError(parsed.error);
+      return;
+    }
+
     startTransition(async () => {
-      const result = await createPortfolio({ name, baseCurrency });
+      const result = await createPortfolio(parsed.data);
 
       if (result.error || !result.portfolio) {
         setError(result.error ?? "Failed to create portfolio.");

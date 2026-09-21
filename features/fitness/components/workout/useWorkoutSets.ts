@@ -4,10 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { clearRestTimerStorage } from "@/features/fitness/components/workout/RestTimer";
 import type { LocalSet } from "@/features/fitness/components/workout/SetRow";
+import type { TodayWorkoutData } from "@/features/fitness/types";
 import {
   deleteSet,
   upsertSet,
-  type TodayWorkoutData,
 } from "@/features/fitness/actions/workout";
 
 import {

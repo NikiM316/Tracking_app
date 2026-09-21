@@ -3,7 +3,7 @@ import { ProgressionChart } from "@/features/fitness/components/analytics/Progre
 import {
   getConsistencyCalendar,
   getExercisesForAnalytics,
-} from "@/features/fitness/actions/analytics";
+} from "@/features/fitness/queries/analytics";
 
 export const dynamic = "force-dynamic";
 

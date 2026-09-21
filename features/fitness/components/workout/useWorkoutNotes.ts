@@ -2,10 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import {
-  upsertExerciseNote,
-  type TodayWorkoutData,
-} from "@/features/fitness/actions/workout";
+import { upsertExerciseNote } from "@/features/fitness/actions/workout";
+import type { TodayWorkoutData } from "@/features/fitness/types";
 
 import { SAVE_DEBOUNCE_MS, SAVE_FLASH_MS } from "./workout-form-shared";
 

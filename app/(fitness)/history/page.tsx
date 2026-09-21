@@ -1,5 +1,5 @@
 import { WorkoutHistoryAccordion } from "@/features/fitness/components/history/WorkoutHistoryAccordion";
-import { getWorkoutHistory } from "@/features/fitness/actions/history";
+import { getWorkoutHistory } from "@/features/fitness/queries/history";
 
 export const dynamic = "force-dynamic";
 

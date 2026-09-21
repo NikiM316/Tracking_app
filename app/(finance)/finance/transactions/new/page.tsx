@@ -1,6 +1,6 @@
 import { NewTransactionForm } from "@/features/finance/components/forms/NewTransactionForm";
-import { getAccounts } from "@/features/finance/actions/accounts";
-import { getCategories } from "@/features/finance/actions/categories";
+import { getAccounts } from "@/features/finance/queries/accounts";
+import { getCategories } from "@/features/finance/queries/categories";
 
 export const dynamic = "force-dynamic";
 

@@ -5,9 +5,11 @@ import { useState, useTransition } from "react";
 
 import { Button } from "@/features/core/components/Button";
 import { createAccount } from "@/features/finance/actions/accounts";
+import { createAccountSchema, financeAccountTypeSchema } from "@/features/finance/schemas";
 import { DecimalField } from "@/features/finance/components/forms/DecimalField";
 import { parseDecimal } from "@/features/finance/utils";
 import type { FinanceAccountType } from "@/lib/supabase/finance-types";
+import { parseActionInput, parseWithSchema } from "@/lib/validation";
 
 const ACCOUNT_TYPES: { value: FinanceAccountType; label: string }[] = [
   { value: "checking", label: "Checking" },
@@ -43,13 +45,19 @@ export function NewAccountForm() {
       return;
     }
 
+    const parsed = parseActionInput(createAccountSchema, {
+      name,
+      accountType,
+      currency,
+      openingBalance: parsedBalance,
+    });
+    if (!parsed.ok) {
+      setError(parsed.error);
+      return;
+    }
+
     startTransition(async () => {
-      const result = await createAccount({
-        name,
-        accountType,
-        currency,
-        openingBalance: parsedBalance,
-      });
+      const result = await createAccount(parsed.data);
 
       if (result.error || !result.account) {
         setError(result.error ?? "Failed to create account.");
@@ -85,7 +93,10 @@ export function NewAccountForm() {
           id="account-type"
           className={fieldClassName}
           value={accountType}
-          onChange={(event) => setAccountType(event.target.value as FinanceAccountType)}
+          onChange={(event) => {
+            const next = parseWithSchema(financeAccountTypeSchema, event.target.value);
+            if (next) setAccountType(next);
+          }}
         >
           {ACCOUNT_TYPES.map((type) => (
             <option key={type.value} value={type.value}>

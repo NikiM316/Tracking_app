@@ -1,6 +1,6 @@
 import { ExerciseBlock } from "@/features/fitness/components/workout/ExerciseBlock";
 import type { LocalSet } from "@/features/fitness/components/workout/SetRow";
-import type { TodayWorkoutData } from "@/features/fitness/actions/workout";
+import type { TodayWorkoutData } from "@/features/fitness/types";
 
 type ActiveWorkoutViewProps = {
   initialData: TodayWorkoutData;

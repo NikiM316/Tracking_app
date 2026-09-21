@@ -1,7 +1,7 @@
 import type {
   PreviousExerciseSession,
   PreviousSessionSet,
-} from "@/features/fitness/actions/workout";
+} from "@/features/fitness/types";
 
 type PreviousSessionGhostProps = {
   session: PreviousExerciseSession | null;

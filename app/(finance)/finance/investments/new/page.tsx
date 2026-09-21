@@ -1,5 +1,5 @@
 import { NewInvestmentTradeForm } from "@/features/finance/components/forms/NewInvestmentTradeForm";
-import { getPortfolios } from "@/features/finance/actions/portfolios";
+import { getPortfolios } from "@/features/finance/queries/portfolios";
 
 export const dynamic = "force-dynamic";
 

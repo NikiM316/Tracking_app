@@ -6,9 +6,11 @@ import { Button } from "@/features/core/components/Button";
 import { deleteTransaction, updateTransaction } from "@/features/finance/actions/transactions";
 import { DateField } from "@/features/finance/components/forms/DateField";
 import { DecimalField } from "@/features/finance/components/forms/DecimalField";
+import { updateTransactionSchema } from "@/features/finance/schemas";
 import { parseDecimal } from "@/features/finance/utils";
 import type { RecentTransaction } from "@/features/finance/types";
 import type { FinanceCategory } from "@/lib/supabase/finance-types";
+import { parseActionInput, uuidSchema } from "@/lib/validation";
 
 type EditTransactionModalProps = {
   transaction: RecentTransaction;
@@ -82,11 +84,22 @@ export function EditTransactionModal({
       return;
     }
 
+    const parsed = parseActionInput(updateTransactionSchema, {
+      id: transaction.id,
+      amount: parsedAmount,
+      date,
+      ...(canEditCategory ? { category_id: categoryId.trim() } : {}),
+    });
+    if (!parsed.ok) {
+      setError(parsed.error);
+      return;
+    }
+
     startTransition(async () => {
-      const result = await updateTransaction(transaction.id, {
-        amount: parsedAmount,
-        date,
-        ...(canEditCategory ? { category_id: categoryId.trim() } : {}),
+      const result = await updateTransaction(parsed.data.id, {
+        amount: parsed.data.amount,
+        date: parsed.data.date,
+        ...(canEditCategory ? { category_id: parsed.data.category_id } : {}),
       });
 
       if (result.error || !result.transaction) {
@@ -105,8 +118,14 @@ export function EditTransactionModal({
       return;
     }
 
+    const parsedId = uuidSchema.safeParse(transaction.id);
+    if (!parsedId.success) {
+      setError("Transaction id must be a valid UUID.");
+      return;
+    }
+
     startTransition(async () => {
-      const result = await deleteTransaction(transaction.id);
+      const result = await deleteTransaction(parsedId.data);
 
       if (!result.success) {
         setError(result.error ?? "Failed to delete transaction.");

@@ -1,5 +1,5 @@
 import { ImportCsvForm } from "@/features/finance/components/forms/ImportCsvForm";
-import { getAccounts } from "@/features/finance/actions/accounts";
+import { getAccounts } from "@/features/finance/queries/accounts";
 
 export const dynamic = "force-dynamic";
 

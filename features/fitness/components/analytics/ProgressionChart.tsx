@@ -4,11 +4,11 @@ import { format, parseISO } from "date-fns";
 import dynamic from "next/dynamic";
 import { useEffect, useState, useTransition } from "react";
 
-import {
-  getExerciseProgress,
-  type ExerciseOption,
-  type ExerciseProgressPoint,
-} from "@/features/fitness/actions/analytics";
+import { getExerciseProgress } from "@/features/fitness/actions/analytics";
+import type {
+  ExerciseOption,
+  ExerciseProgressPoint,
+} from "@/features/fitness/types";
 
 import type { ChartPoint } from "./ProgressionChartCanvas";
 
