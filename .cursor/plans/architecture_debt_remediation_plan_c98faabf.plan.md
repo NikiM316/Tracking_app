@@ -40,7 +40,7 @@ todos:
     status: completed
   - id: docs-process
     content: "Phase 10: Rewrite README, retire project-context.md, update stale plan docs, clarify Study_plan.md, gitignore .DS_Store, add basic CI"
-    status: pending
+    status: completed
 isProject: false
 ---
 

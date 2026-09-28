@@ -61,4 +61,4 @@ timestamped file rather than editing an applied one, and regenerate
 
 RLS is enabled on all 20 tables with only deny-all policies; the app reaches the
 database exclusively through the server-side service-role client, which bypasses
-RLS. See [SECURITY.md](../SECURITY.md) before changing any of this.
+RLS. See [System.md](../System.md) before changing any of this.
