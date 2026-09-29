@@ -3,7 +3,6 @@
 import { Button } from "@/features/core/components/Button";
 import { NumberInput } from "@/features/core/components/NumberInput";
 import { SetCategoryPicker } from "@/features/fitness/components/workout/SetCategoryPicker";
-import { formatRestDuration } from "@/lib/utils/format-rest";
 import type { SetCategory } from "@/lib/supabase/types";
 
 export type LocalSet = {
@@ -13,7 +12,6 @@ export type LocalSet = {
   weight: number | null;
   reps: number | null;
   set_order: number;
-  restSeconds?: number | null;
   /** Marks warm-ups created by automatic Top-set warm-up generation. */
   isSmartWarmup?: boolean;
   /** Shown when Top set is selected but no previous top-set data exists. */
@@ -45,11 +43,6 @@ export function SetRow({
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-zinc-200">Set {index + 1}</p>
-          {set.restSeconds != null ? (
-            <span className="rounded-full border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[11px] font-medium text-zinc-400">
-              {formatRestDuration(set.restSeconds)} rest
-            </span>
-          ) : null}
           {set.saving ? (
             <span className="text-xs font-medium text-emerald-400">Saving…</span>
           ) : (

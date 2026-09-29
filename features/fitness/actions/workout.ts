@@ -89,7 +89,6 @@ export async function upsertSet(
     weight_kg: parsed.data.weight,
     reps: parsed.data.reps,
     set_order: parsed.data.setOrder,
-    rest_seconds: parsed.data.restSeconds ?? null,
   };
 
   if (parsed.data.id) {

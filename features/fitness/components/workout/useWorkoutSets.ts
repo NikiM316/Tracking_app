@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { clearRestTimerStorage } from "@/features/fitness/components/workout/RestTimer";
 import type { LocalSet } from "@/features/fitness/components/workout/SetRow";
 import type { TodayWorkoutData } from "@/features/fitness/types";
 import {
@@ -12,7 +11,6 @@ import {
 
 import {
   createEmptySet,
-  getRestSecondsForSet,
   groupSetsByExercise,
   insertSmartWarmups,
   SAVE_DEBOUNCE_MS,
@@ -44,7 +42,6 @@ export function useWorkoutSets({
   const setFlashTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const pendingSetSaves = useRef<Record<string, { exerciseId: string; set: LocalSet }>>({});
   const workoutIdRef = useRef<string | null>(workoutId ?? null);
-  const restElapsedByPrecedingSetRef = useRef<Record<string, number>>({});
   const setsByExerciseRef = useRef(setsByExercise);
   const inFlightWritesRef = useRef(new Set<Promise<void>>());
   const writeChainByLocalIdRef = useRef<Record<string, Promise<void>>>({});
@@ -69,7 +66,6 @@ export function useWorkoutSets({
     const setSaveTimersMap = setSaveTimers.current;
     const setFlashTimersMap = setFlashTimers.current;
     const pendingSetSavesMap = pendingSetSaves.current;
-    const restElapsedByPrecedingSet = restElapsedByPrecedingSetRef.current;
 
     return () => {
       for (const timer of Object.values(setSaveTimersMap)) clearTimeout(timer);
@@ -84,13 +80,6 @@ export function useWorkoutSets({
       if (pendingWorkoutId) {
         for (const { exerciseId, set } of flushable) {
           const exerciseSets = setsByExerciseRef.current[exerciseId] ?? [];
-          const restSeconds = getRestSecondsForSet(
-            exerciseSets,
-            set.localId,
-            restElapsedByPrecedingSet,
-            set.restSeconds,
-          );
-
           const liveSet = exerciseSets.find((item) => item.localId === set.localId);
 
           void upsertSet({
@@ -101,7 +90,6 @@ export function useWorkoutSets({
             weight: set.weight,
             reps: set.reps!,
             setOrder: liveSet?.set_order ?? set.set_order,
-            restSeconds,
           });
         }
       }
@@ -258,10 +246,6 @@ export function useWorkoutSets({
     }
   }
 
-  function handleRestElapsedChange(precedingSetLocalId: string, seconds: number) {
-    restElapsedByPrecedingSetRef.current[precedingSetLocalId] = seconds;
-  }
-
   function handleSaveSet(exerciseId: string, localId: string, target: LocalSet) {
     const reps = target.reps;
     if (reps == null || reps < 1) {
@@ -294,13 +278,6 @@ export function useWorkoutSets({
       const liveSet = exerciseSets.find((set) => set.localId === localId);
       if (!liveSet) return;
 
-      const restSeconds = getRestSecondsForSet(
-        exerciseSets,
-        localId,
-        restElapsedByPrecedingSetRef.current,
-        liveSet.restSeconds ?? target.restSeconds,
-      );
-
       try {
         const result = await upsertSet({
           id: liveSet.id,
@@ -310,7 +287,6 @@ export function useWorkoutSets({
           weight: target.weight,
           reps,
           setOrder: liveSet.set_order,
-          restSeconds,
         });
 
         if (result.error || !result.set) {
@@ -318,8 +294,8 @@ export function useWorkoutSets({
           return;
         }
 
-        // Keep `localId` stable across saves so RestTimer / SetRow are not remounted
-        // when upsertSet assigns a DB id (that remount was resetting the rest timer).
+        // Keep `localId` stable across saves so SetRow is not remounted
+        // when upsertSet assigns a database id.
         updateExerciseSets(exerciseId, (sets) =>
           sets.map((set) =>
             set.localId === localId
@@ -373,8 +349,6 @@ export function useWorkoutSets({
       delete setSaveTimers.current[localId];
     }
     delete pendingSetSaves.current[localId];
-    delete restElapsedByPrecedingSetRef.current[localId];
-    clearRestTimerStorage(localId);
 
     setErrorMessage(null);
 
@@ -448,7 +422,6 @@ export function useWorkoutSets({
     handleAddSet,
     handleChangeSet,
     handleDeleteSet,
-    handleRestElapsedChange,
     flush,
   };
 }

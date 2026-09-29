@@ -19,7 +19,7 @@ const PREVIOUS_SESSION_LOOKBACK = CYCLE_PROGRAM.length * 2;
 
 const EXERCISE_COLUMNS = "id, name, slug, category, created_at" as const;
 const SET_COLUMNS =
-  "id, workout_id, exercise_id, set_category, weight_kg, reps, set_order, rest_seconds, created_at" as const;
+  "id, workout_id, exercise_id, set_category, weight_kg, reps, set_order, created_at" as const;
 const PREVIOUS_SESSION_SET_COLUMNS =
   "workout_id, exercise_id, weight_kg, reps, set_order" as const;
 const PREVIOUS_NOTE_COLUMNS = "workout_id, exercise_id, note" as const;

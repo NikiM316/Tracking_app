@@ -2,7 +2,6 @@ import { format, parseISO } from "date-fns";
 
 import type { LocalSet } from "@/features/fitness/components/workout/SetRow";
 import { formatSetCategory } from "@/features/fitness/lib/format";
-import { formatRestDuration } from "@/lib/utils/format-rest";
 import type { Exercise } from "@/lib/supabase/types";
 
 type WorkoutCompleteSummaryProps = {
@@ -71,9 +70,6 @@ export function WorkoutCompleteSummary({
                     <span className="font-semibold text-zinc-100">
                       {set.weight != null ? `${set.weight} kg × ` : ""}
                       {set.reps} reps
-                      {set.restSeconds != null
-                        ? ` (${formatRestDuration(set.restSeconds)} rest)`
-                        : ""}
                     </span>
                   </li>
                 ))}

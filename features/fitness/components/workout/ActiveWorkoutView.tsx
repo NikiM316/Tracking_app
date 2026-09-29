@@ -13,7 +13,6 @@ type ActiveWorkoutViewProps = {
   onChangeSet: (exerciseId: string, localId: string, next: LocalSet) => void;
   onDeleteSet: (exerciseId: string, localId: string) => void;
   onAddSet: (exerciseId: string) => void;
-  onRestElapsedChange: (precedingSetLocalId: string, seconds: number) => void;
   onNoteChange: (exerciseId: string, note: string) => void;
 };
 
@@ -28,7 +27,6 @@ export function ActiveWorkoutView({
   onChangeSet,
   onDeleteSet,
   onAddSet,
-  onRestElapsedChange,
   onNoteChange,
 }: ActiveWorkoutViewProps) {
   return (
@@ -57,7 +55,6 @@ export function ActiveWorkoutView({
           onChangeSet={(localId, next) => onChangeSet(exercise.id, localId, next)}
           onDeleteSet={(localId) => onDeleteSet(exercise.id, localId)}
           onAddSet={() => onAddSet(exercise.id)}
-          onRestElapsedChange={onRestElapsedChange}
           previousNote={initialData.previousNotesByExercise[exercise.id] ?? null}
           noteValue={notesByExercise[exercise.id] ?? ""}
           onNoteChange={(value) => onNoteChange(exercise.id, value)}

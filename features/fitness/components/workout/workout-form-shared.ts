@@ -10,22 +10,6 @@ export function createLocalId() {
   return `local-${crypto.randomUUID()}`;
 }
 
-export function getRestSecondsForSet(
-  exerciseSets: LocalSet[],
-  localId: string,
-  restElapsedByPrecedingSet: Record<string, number>,
-  fallbackRestSeconds: number | null | undefined,
-): number | null {
-  const setIndex = exerciseSets.findIndex((set) => set.localId === localId);
-  if (setIndex <= 0) return null;
-
-  const precedingLocalId = exerciseSets[setIndex - 1].localId;
-  if (precedingLocalId in restElapsedByPrecedingSet) {
-    return restElapsedByPrecedingSet[precedingLocalId];
-  }
-  return fallbackRestSeconds ?? null;
-}
-
 export function toLocalSet(set: WorkoutSetView): LocalSet {
   return {
     localId: set.id,
@@ -34,7 +18,6 @@ export function toLocalSet(set: WorkoutSetView): LocalSet {
     weight: set.weight_kg,
     reps: set.reps,
     set_order: set.set_order,
-    restSeconds: set.rest_seconds,
     dirty: false,
     saving: false,
   };

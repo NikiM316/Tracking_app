@@ -3,7 +3,6 @@ import {
   formatHistoryDate,
   formatSetCategory,
 } from "@/features/fitness/lib/format";
-import { formatRestDuration } from "@/lib/utils/format-rest";
 
 type WorkoutHistoryAccordionProps = {
   entries: HistoryWorkoutEntry[];
@@ -77,9 +76,6 @@ export function WorkoutHistoryAccordion({ entries }: WorkoutHistoryAccordionProp
                           <span className="font-medium text-zinc-100">
                             {set.weight_kg != null ? `${set.weight_kg} kg × ` : ""}
                             {set.reps} reps
-                            {set.rest_seconds != null
-                              ? ` (${formatRestDuration(set.rest_seconds)} rest)`
-                              : ""}
                           </span>
                         </li>
                       ))}

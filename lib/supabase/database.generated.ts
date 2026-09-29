@@ -759,7 +759,6 @@ export type Database = {
           exercise_id: string | null
           id: string
           reps: number | null
-          rest_seconds: number | null
           rpe: number | null
           set_category: Database["public"]["Enums"]["set_category"]
           set_order: number
@@ -773,7 +772,6 @@ export type Database = {
           exercise_id?: string | null
           id?: string
           reps?: number | null
-          rest_seconds?: number | null
           rpe?: number | null
           set_category: Database["public"]["Enums"]["set_category"]
           set_order: number
@@ -787,7 +785,6 @@ export type Database = {
           exercise_id?: string | null
           id?: string
           reps?: number | null
-          rest_seconds?: number | null
           rpe?: number | null
           set_category?: Database["public"]["Enums"]["set_category"]
           set_order?: number

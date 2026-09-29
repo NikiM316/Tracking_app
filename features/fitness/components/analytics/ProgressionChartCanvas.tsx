@@ -11,7 +11,6 @@ import {
 } from "recharts";
 
 import type { ExerciseProgressPoint } from "@/features/fitness/types";
-import { formatRestDuration } from "@/lib/utils/format-rest";
 
 export type ChartPoint = ExerciseProgressPoint & { label: string };
 
@@ -56,12 +55,8 @@ export function ProgressionChartCanvas({
             labelStyle={{ color: "#e4e4e7" }}
             formatter={(value, _name, item) => {
               const point = item.payload as ChartPoint;
-              const restLabel =
-                point.bestSetRestSeconds != null
-                  ? ` · ${formatRestDuration(point.bestSetRestSeconds)} rest`
-                  : "";
               return [
-                `${value} kg (${point.maxWeight}kg × ${point.bestReps}${restLabel})`,
+                `${value} kg (${point.maxWeight}kg × ${point.bestReps})`,
                 "Est. 1RM",
               ];
             }}

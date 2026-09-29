@@ -15,7 +15,6 @@ type ExerciseBlockProps = {
   onChangeSet: (localId: string, next: LocalSet) => void;
   onDeleteSet: (localId: string) => void;
   onAddSet: () => void;
-  onRestElapsedChange: (precedingSetLocalId: string, seconds: number) => void;
   previousNote: string | null;
   noteValue: string;
   onNoteChange: (value: string) => void;
@@ -38,7 +37,6 @@ export function ExerciseBlock({
   onChangeSet,
   onDeleteSet,
   onAddSet,
-  onRestElapsedChange,
   previousNote,
   noteValue,
   onNoteChange,
@@ -67,7 +65,6 @@ export function ExerciseBlock({
         onChangeSet={onChangeSet}
         onDeleteSet={onDeleteSet}
         onAddSet={onAddSet}
-        onRestElapsedChange={onRestElapsedChange}
       />
 
       <div className="mt-4">

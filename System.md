@@ -10,7 +10,7 @@ The unifying idea is **structured self-accountability**. Each module encodes a r
 
 | Module | Routes | Core purpose |
 |---|---|---|
-| **Fitness** (Gym Tracker) | `/today`, `/cycle`, `/history`, `/analytics` | Log workouts against a fixed 14-day hybrid Push/Pull/Legs cycle. Set-by-set logging, smart barbell warm-ups, rest timers, a consistency calendar, and estimated-1RM progression. |
+| **Fitness** (Gym Tracker) | `/today`, `/cycle`, `/history`, `/analytics` | Log workouts against a fixed 14-day hybrid Push/Pull/Legs cycle. Set-by-set logging, smart barbell warm-ups, a consistency calendar, and estimated-1RM progression. |
 | **Finance** (Finance Tracker) | `/finance/**` | EUR-centric net worth across cash accounts and an investment portfolio. Manual transactions plus Revolut CSV import, category-grouped spending, and live ETH pricing. |
 | **Monk Mode** (Discipline) | `/monk`, `/monk/habits`, `/monk/challenge` | A 180-day binary challenge. Every day is PASSED or FAILED. One failure resets the attempt. Tracks mandatory habits, daily tasks, digital-fasting limits, an end-of-day reflection, and a loosely coupled 6-week study curriculum. |
 

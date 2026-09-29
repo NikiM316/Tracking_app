@@ -86,7 +86,6 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
           onChangeSet={sets.handleChangeSet}
           onDeleteSet={sets.handleDeleteSet}
           onAddSet={sets.handleAddSet}
-          onRestElapsedChange={sets.handleRestElapsedChange}
           onNoteChange={notes.handleChangeNote}
         />
       )}

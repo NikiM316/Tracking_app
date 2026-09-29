@@ -34,7 +34,6 @@ export const upsertSetSchema = z.object({
     .number({ error: "Set order must be a positive integer." })
     .int("Set order must be a positive integer.")
     .positive("Set order must be a positive integer."),
-  restSeconds: z.number().int().nonnegative().nullable().optional(),
 });
 
 export const deleteSetSchema = z.object({

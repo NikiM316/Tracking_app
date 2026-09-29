@@ -9,7 +9,6 @@ export type WorkoutSetView = Pick<
   | "weight_kg"
   | "reps"
   | "set_order"
-  | "rest_seconds"
   | "created_at"
 >;
 
@@ -82,5 +81,4 @@ export type ExerciseProgressPoint = {
   estimatedOneRepMax: number;
   maxWeight: number;
   bestReps: number;
-  bestSetRestSeconds: number | null;
 };
