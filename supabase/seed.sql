@@ -7,9 +7,8 @@
 --   * monk_settings + the 6-week study plan (6 weeks, 38 items)
 --       -> 20260820083115_create_monk_mode_schema.sql
 --
--- The 70 exercises below are the catalog the 14-day program references by slug
--- (see lib/program/cycle.ts). Exported from the live project on 2026-09-02.
--- Idempotent: safe to re-run.
+-- The 50 exercises below are the catalog the 14-day program references by slug
+-- (see lib/program/cycle.ts). Idempotent: safe to re-run.
 
 INSERT INTO exercises (slug, name, category) VALUES
   ('atg-split-squats', 'ATG Split Squats', 'barbell'),
@@ -24,9 +23,7 @@ INSERT INTO exercises (slug, name, category) VALUES
   ('front-squat', 'Front Squat', 'barbell'),
   ('hammer-curls', 'Hammer Curls', 'barbell'),
   ('heavy-db-row', 'Heavy DB Row', 'barbell'),
-  ('heavy-kneeling-cable-crunches', 'Heavy Kneeling Cable Crunches', 'barbell'),
   ('high-cable-triceps-extensions', 'High Cable Triceps Extensions', 'barbell'),
-  ('high-to-low-cable-woodchoppers', 'High-to-Low Cable Woodchoppers', 'barbell'),
   ('incline-biceps-curls', 'Incline Biceps Curls', 'barbell'),
   ('incline-dumbbell-curls', 'Incline Dumbbell Curls', 'barbell'),
   ('incline-dumbbell-press', 'Incline Dumbbell Press', 'barbell'),
@@ -48,38 +45,20 @@ INSERT INTO exercises (slug, name, category) VALUES
   ('single-leg-rdl-dumbbell', 'Single Leg RDL Dumbbell', 'barbell'),
   ('standing-calf-raises', 'Standing Calf Raises', 'barbell'),
   ('standing-landmine-press', 'Standing Landmine Press', 'barbell'),
-  ('standing-pallof-press', 'Standing Pallof Press', 'barbell'),
   ('straight-arm-lat-pulldown', 'Straight-Arm Lat Pulldown', 'barbell'),
   ('weighted-cossack-squats', 'Weighted Cossack Squats', 'barbell'),
   ('weighted-walking-lunges', 'Weighted Walking Lunges', 'barbell'),
   ('zottman-curls', 'Zottman Curls', 'barbell'),
   ('archer-push-ups', 'Archer Push-Ups', 'calisthenics'),
-  ('back-extension', 'Back Extension', 'calisthenics'),
-  ('bench-reverse-crunches', 'Bench Reverse Crunches', 'calisthenics'),
-  ('garhammer-raises', 'Garhammer Raises', 'calisthenics'),
   ('handstand-push-up', 'Handstand Push-up', 'calisthenics'),
-  ('hanging-leg-raises', 'Hanging Leg Raises', 'calisthenics'),
-  ('hollow-body-hold', 'Hollow Body Hold', 'calisthenics'),
-  ('kneeling-ab-wheel-rollouts', 'Kneeling Ab Wheel Rollouts', 'calisthenics'),
-  ('l-sit-hold', 'L-Sit Hold', 'calisthenics'),
   ('muscle-up', 'Muscle-up', 'calisthenics'),
   ('neutral-grip-pull-ups', 'Neutral Grip Pull-Ups', 'calisthenics'),
   ('nordic-hamstring-curls', 'Nordic Hamstring Curls', 'calisthenics'),
   ('parallel-bar-dips', 'Parallel Bar Dips', 'calisthenics'),
   ('pseudo-push-ups', 'Pseudo Push Ups', 'calisthenics'),
   ('strict-hollow-body-pull-ups', 'Strict Hollow-Body Pull-Ups', 'calisthenics'),
-  ('vacuum-holds', 'Vacuum Holds', 'calisthenics'),
   ('wall-hspu-negatives', 'Wall HSPU Negatives', 'calisthenics'),
   ('weighted-chin-ups', 'Weighted Chin-Ups', 'calisthenics'),
-  ('weighted-copenhagen-planks', 'Weighted Copenhagen Planks', 'calisthenics'),
-  ('weighted-decline-sit-ups', 'Weighted Decline Sit-Ups', 'calisthenics'),
   ('weighted-dips', 'Weighted Dips', 'calisthenics'),
-  ('weighted-pull-ups', 'Weighted Pull-Ups', 'calisthenics'),
-  ('weighted-russian-twists', 'Weighted Russian Twists', 'calisthenics'),
-  ('weighted-side-plank', 'Weighted Side Plank', 'calisthenics'),
-  ('zone-2-cardio', 'Zone 2 Cardio', 'cardio'),
-  ('couch-stretch', 'Couch Stretch', 'mobility'),
-  ('deep-squat-hold', 'Deep Squat Hold', 'mobility'),
-  ('jefferson-curls', 'Jefferson Curls', 'mobility'),
-  ('thoracic-bridge', 'Thoracic Bridge', 'mobility')
+  ('weighted-pull-ups', 'Weighted Pull-Ups', 'calisthenics')
 ON CONFLICT (slug) DO NOTHING;

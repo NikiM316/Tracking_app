@@ -34,7 +34,7 @@ describe("buildConsistencyDays", () => {
       { date: "2026-09-02", cycle_day: 7, completed_at: null },
     ]);
 
-    expect(days[0]).toMatchObject({ status: "rest", programLabel: "Active Recovery" });
+    expect(days[0]).toMatchObject({ status: "rest", programLabel: "Total Rest" });
     expect(days[1]).toMatchObject({ status: "rest", programLabel: "Total Rest" });
   });
 
@@ -79,7 +79,7 @@ describe("buildConsistencyDays", () => {
     expect(days[1]).toMatchObject({
       date: "2026-09-02",
       cycleDay: 4,
-      programLabel: "Active Recovery",
+      programLabel: "Total Rest",
       status: "rest",
     });
   });

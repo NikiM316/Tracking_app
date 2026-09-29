@@ -73,7 +73,7 @@ Mutations are Server Actions. There are no `route.ts` handlers. Read helpers tha
 
 ### Fitness
 
-The 14-day cycle is an `as const` array in `lib/program/cycle.ts`: Push A, Pull A, Legs A, Active Recovery, Upper A, Lower A, Total Rest, then the B variants and a second rest day.
+The 14-day cycle is an `as const` array in `lib/program/cycle.ts`: Push A, Pull A, Legs A, Total Rest, Upper A, Lower A, Total Rest, then Push B, Pull B, Legs B, Total Rest, Upper B, Lower B, and a final Total Rest.
 
 **Cycle day advancement is workout-driven, not calendar-driven.** A new workout's `cycle_day` is `(previous workout's cycle_day % 14) + 1`. Skipping a calendar day does not skip a program day. The header selector can override the day, and the override carries forward.
 

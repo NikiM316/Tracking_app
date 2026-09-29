@@ -13,7 +13,7 @@ repository had no way to reproduce it. These migrations close that gap.
   original earliest migration already assumed `public.sets` existed). The
   remaining 10 are byte-identical exports of what is recorded in the live
   project's `supabase_migrations.schema_migrations`.
-- `seed.sql` — the 70-exercise catalog. Applied automatically by
+- `seed.sql` — the 50-exercise catalog. Applied automatically by
   `supabase db reset`. Finance categories and the study plan are seeded inside
   migrations instead, so they are deliberately not repeated here.
 - `config.toml` — CLI configuration for the local stack.
