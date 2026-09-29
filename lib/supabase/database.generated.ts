@@ -979,10 +979,6 @@ export type Database = {
           type: Database["public"]["Enums"]["finance_transaction_type"]
         }[]
       }
-      increment_workout_water: {
-        Args: { p_amount: number; p_workout_id: string }
-        Returns: number
-      }
     }
     Enums: {
       exercise_category: "barbell" | "calisthenics" | "cardio" | "mobility"

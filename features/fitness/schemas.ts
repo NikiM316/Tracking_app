@@ -20,13 +20,6 @@ export const finishWorkoutSchema = z.object({
   workoutId: uuidSchema,
 });
 
-export const incrementWaterMlSchema = z.object({
-  amountMl: z
-    .number({ error: "Water amount must be positive." })
-    .finite("Water amount must be positive.")
-    .positive("Water amount must be positive."),
-});
-
 export const upsertSetSchema = z.object({
   id: uuidSchema.optional(),
   workoutId: uuidSchema,

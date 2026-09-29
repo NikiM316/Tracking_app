@@ -10,7 +10,7 @@ The unifying idea is **structured self-accountability**. Each module encodes a r
 
 | Module | Routes | Core purpose |
 |---|---|---|
-| **Fitness** (Gym Tracker) | `/today`, `/cycle`, `/history`, `/analytics` | Log workouts against a fixed 14-day hybrid Push/Pull/Legs cycle. Set-by-set logging, smart barbell warm-ups, rest timers, water intake, a consistency calendar, and estimated-1RM progression. |
+| **Fitness** (Gym Tracker) | `/today`, `/cycle`, `/history`, `/analytics` | Log workouts against a fixed 14-day hybrid Push/Pull/Legs cycle. Set-by-set logging, smart barbell warm-ups, rest timers, a consistency calendar, and estimated-1RM progression. |
 | **Finance** (Finance Tracker) | `/finance/**` | EUR-centric net worth across cash accounts and an investment portfolio. Manual transactions plus Revolut CSV import, category-grouped spending, and live ETH pricing. |
 | **Monk Mode** (Discipline) | `/monk`, `/monk/habits`, `/monk/challenge` | A 180-day binary challenge. Every day is PASSED or FAILED. One failure resets the attempt. Tracks mandatory habits, daily tasks, digital-fasting limits, an end-of-day reflection, and a loosely coupled 6-week study curriculum. |
 
@@ -31,7 +31,6 @@ There is **no authentication**. Every row belongs to one placeholder user, `0000
 | `zod` | ^4 | Server-action input validation. |
 | `recharts` | ^3.10 | Progression chart on `/analytics`. |
 | `papaparse` | ^5.5.4 | Client-side Revolut CSV parsing. |
-| `canvas-confetti` | ^1.9.4 | Water-goal celebration. |
 | `date-fns` | ^4.4 | Date helpers. |
 | `server-only` | ^0.0.1 | Guards `lib/supabase/server.ts` against client import. |
 | `vitest` | ^4 | Unit tests for pure domain logic. |
@@ -81,7 +80,6 @@ The 14-day cycle is an `as const` array in `lib/program/cycle.ts`: Push A, Pull 
 - **Smart warm-ups.** "Top set" on a barbell exercise generates three warm-up sets at 50% × 8, 70% × 5, and 90% × 1 of the previous top set on the same cycle day, rounded to 2.5 kg (`lib/utils/warmups.ts`).
 - **Debounced autosave.** Sets and notes save shortly after the last edit, with a flush on unmount.
 - **Rest timers.** One per set row, persisted in `sessionStorage`. Elapsed seconds are written onto the following set.
-- **Water.** 3,500 ml daily goal, incremented through the `increment_workout_water` Postgres function, with an optimistic update and confetti on the first goal hit.
 - **Analytics.** A consistency calendar and an estimated-1RM chart using the Epley formula (`weight × (1 + reps / 30)`).
 
 Calendar dates for fitness, finance, and monk all use `Europe/Sofia` (`lib/utils/dates.ts`), not UTC `toISOString().slice(0, 10)`.
@@ -176,7 +174,7 @@ Local values come from `supabase start`. See `supabase/README.md`.
 
 Twenty `public` tables. Types are generated into `lib/supabase/database.generated.ts` and re-exported from `lib/supabase/types.ts`, with finance and monk aliases alongside.
 
-**Fitness:** `exercises` (global catalog, keyed by `slug`), `workouts` (one row per user per date: `cycle_day`, `completed_at`, `water_ml`), `sets` (`warmup` / `top_set` / `back_off` / `working_set`), `exercise_notes` (unique on workout + exercise). `increment_workout_water(uuid, int)` is a `SECURITY DEFINER` function that atomically bumps `water_ml`. `workouts (user_id, date DESC)` and `sets (workout_id)` are indexed.
+**Fitness:** `exercises` (global catalog, keyed by `slug`), `workouts` (one row per user per date: `cycle_day`, `completed_at`, `water_ml`), `sets` (`warmup` / `top_set` / `back_off` / `working_set`), `exercise_notes` (unique on workout + exercise). `water_ml` remains on the row and is unused by the app. `workouts (user_id, date DESC)` and `sets (workout_id)` are indexed.
 
 **Finance:** `finance_accounts`, `finance_categories` (self-referencing tree), `finance_transactions`, `finance_portfolios`, `finance_securities` (`user_id IS NULL` means a shared catalogue row), `finance_holdings`, `finance_investment_transactions`. Cashflow totals are aggregated in the database (`finance_cashflow_totals`).
 
@@ -226,21 +224,21 @@ RLS is enabled on all 20 public tables. `supabase/migrations/20260902071914_lock
 | `deny_all_anon_authenticated` restrictive policy on every public table | `anon` and `authenticated` are denied, and stay denied even if a permissive policy is added later |
 | `REVOKE ALL ON ALL TABLES` from `anon` and `authenticated` | No table privileges remain behind the policies, so the lockdown survives RLS being toggled off |
 | `ALTER DEFAULT PRIVILEGES ... REVOKE` for both roles | Newly created tables are not auto-granted to client roles |
-| `REVOKE EXECUTE` on `increment_workout_water` from `PUBLIC`, `anon`, and `authenticated` | Closes the one genuine hole (below) |
+| `DROP FUNCTION increment_workout_water` | Removes the only `SECURITY DEFINER` RPC. `workouts.water_ml` stays |
 | Default `EXECUTE` on new functions revoked from `PUBLIC` | A later `SECURITY DEFINER` function is not anon-callable by default |
 
 `service_role` is intentionally untouched. Revoking its access would break the app.
 
-`public.increment_workout_water(uuid, integer)` is `SECURITY DEFINER`, so it runs with the owner's rights and **RLS does not apply to it**. It was created with `EXECUTE` granted to `PUBLIC`, which meant anyone holding the publishable anon key could call it over PostgREST and increment any workout's water total by id. Execute is now revoked from `PUBLIC`, `anon`, and `authenticated`, and granted only to `service_role`.
+`public.increment_workout_water(uuid, integer)` was `SECURITY DEFINER`, so it ran with the owner's rights and RLS did not apply to it. It was created with `EXECUTE` granted to `PUBLIC`, which meant anyone holding the publishable anon key could call it over PostgREST and increment any workout's water total by id. Execute was revoked from `PUBLIC`, `anon`, and `authenticated`, and the function has since been dropped. `workouts.water_ml` is still on the table.
 
-Verified after the fix, using the anon key against PostgREST:
+Verified after the lockdown, using the anon key against PostgREST:
 
 ```
 GET  /rest/v1/exercises                     -> 401  permission denied for table exercises
 POST /rest/v1/rpc/increment_workout_water   -> 401  permission denied for function increment_workout_water
 ```
 
-The same requests with the service-role key return `200` with data.
+The exercises request with the service-role key returns `200` with data. The water RPC no longer exists.
 
 The deny-all block is a loop over `pg_class`, so **a new table is not covered until that block runs again**. After adding tables, re-run that block or copy its `DO $$ ... $$` body into the new migration. Default privileges already stop new tables from being granted to `anon` and `authenticated`.
 
@@ -256,7 +254,7 @@ The Supabase security advisor reports `auth_leaked_password_protection` as disab
 
 ## Technical Debt
 
-The September 2026 audit's critical items are done: migrations and seed are in the repo, the RPC hole is closed, Vitest covers the pure domain logic, finance and monk actions are split into `actions/`, shells are shared, dates share `Europe/Sofia`, unused tables are dropped, database types are generated, PWA icons and a service worker exist, and `@supabase/ssr` is not a dependency.
+The September 2026 audit's critical items are done: migrations and seed are in the repo, the water RPC is dropped, Vitest covers the pure domain logic, finance and monk actions are split into `actions/`, shells are shared, dates share `Europe/Sofia`, unused tables are dropped, database types are generated, PWA icons and a service worker exist, and `@supabase/ssr` is not a dependency.
 
 What remains:
 

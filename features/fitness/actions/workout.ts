@@ -2,11 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getOrCreateTodayWorkout } from "@/features/fitness/lib/today-workout";
 import {
   deleteSetSchema,
   finishWorkoutSchema,
-  incrementWaterMlSchema,
   updateWorkoutCycleDaySchema,
   upsertExerciseNoteSchema,
   upsertSetSchema,
@@ -15,7 +13,6 @@ import type { UpsertExerciseNoteInput, UpsertSetInput } from "@/features/fitness
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Set, Workout } from "@/lib/supabase/types";
 import { parseActionInput } from "@/lib/validation";
-import { WATER_INCREMENT_ML } from "@/lib/utils/water";
 
 export async function updateWorkoutCycleDay(
   workoutId: string,
@@ -73,56 +70,6 @@ export async function finishWorkout(
   revalidatePath("/today");
   revalidatePath("/history");
   return { workout };
-}
-
-export async function incrementWaterMl(
-  amountMl: number = WATER_INCREMENT_ML,
-): Promise<
-  | { waterMl: number; workout: Workout; error?: undefined }
-  | { waterMl: null; workout: null; error: string }
-> {
-  const parsed = parseActionInput(incrementWaterMlSchema, { amountMl });
-  if (!parsed.ok) {
-    return { waterMl: null, workout: null, error: parsed.error };
-  }
-
-  const amount = Math.round(parsed.data.amountMl);
-  const supabase = createServerSupabaseClient();
-
-  let todayWorkout: Workout;
-  try {
-    todayWorkout = await getOrCreateTodayWorkout();
-  } catch (cause) {
-    return {
-      waterMl: null,
-      workout: null,
-      error:
-        cause instanceof Error
-          ? cause.message
-          : "Failed to prepare today's workout for water tracking.",
-    };
-  }
-
-  const { data: newTotal, error } = await supabase.rpc("increment_workout_water", {
-    p_workout_id: todayWorkout.id,
-    p_amount: amount,
-  });
-
-  if (error || typeof newTotal !== "number") {
-    return {
-      waterMl: null,
-      workout: null,
-      error: error?.message ?? "Failed to increment water intake.",
-    };
-  }
-
-  const workout: Workout = {
-    ...todayWorkout,
-    water_ml: newTotal,
-  };
-
-  revalidatePath("/today");
-  return { waterMl: newTotal, workout };
 }
 
 export async function upsertSet(

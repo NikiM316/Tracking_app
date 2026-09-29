@@ -8,7 +8,6 @@ import type { Workout } from "@/lib/supabase/types";
 type UseFinishWorkoutOptions = {
   workoutId: string | null | undefined;
   setWorkout: (workout: Workout) => void;
-  syncWaterFromWorkout: (workout: Workout) => void;
   setErrorMessage: (value: string | null) => void;
   flush: () => Promise<void>;
 };
@@ -16,7 +15,6 @@ type UseFinishWorkoutOptions = {
 export function useFinishWorkout({
   workoutId,
   setWorkout,
-  syncWaterFromWorkout,
   setErrorMessage,
   flush,
 }: UseFinishWorkoutOptions) {
@@ -38,7 +36,6 @@ export function useFinishWorkout({
       }
 
       setWorkout(result.workout);
-      syncWaterFromWorkout(result.workout);
     } catch (error) {
       setErrorMessage(
         error instanceof Error

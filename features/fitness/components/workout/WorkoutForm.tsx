@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 import { CycleDaySelector } from "@/features/fitness/components/workout/CycleDaySelector";
-import { WaterTracker } from "@/features/fitness/components/workout/WaterTracker";
 import type { TodayWorkoutData } from "@/features/fitness/types";
 
 import { ActiveWorkoutView } from "./ActiveWorkoutView";
@@ -13,7 +12,6 @@ import { RestDayView } from "./RestDayView";
 import { useFinishWorkout } from "./useFinishWorkout";
 import { useWorkoutNotes } from "./useWorkoutNotes";
 import { useWorkoutSets } from "./useWorkoutSets";
-import { useWorkoutWater } from "./useWorkoutWater";
 
 type WorkoutFormProps = {
   initialData: TodayWorkoutData;
@@ -36,11 +34,6 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
   const [workout, setWorkout] = useState(initialData.workout);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const water = useWorkoutWater({
-    initialWaterMl: initialData.workout?.water_ml ?? 0,
-    setWorkout,
-    setErrorMessage,
-  });
   const sets = useWorkoutSets({
     exercises: initialData.exercises,
     initialSets: initialData.sets,
@@ -57,7 +50,6 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
   const { isFinishing, handleFinishWorkout } = useFinishWorkout({
     workoutId: workout?.id,
     setWorkout,
-    syncWaterFromWorkout: water.syncFromWorkout,
     setErrorMessage,
     flush: sets.flush,
   });
@@ -71,8 +63,6 @@ export function WorkoutForm({ initialData }: WorkoutFormProps) {
       {workout?.id ? (
         <CycleDaySelector workoutId={workout.id} cycleDay={initialData.cycleDay} />
       ) : null}
-
-      <WaterTracker waterMl={water.optimisticWaterMl} onAdd={water.handleAddWater} />
 
       {isRestDay ? (
         <RestDayView cycleDay={initialData.cycleDay} />
