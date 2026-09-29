@@ -12,7 +12,7 @@ export const CYCLE_PROGRAM = [
   { day: 5, label: "Upper A", exerciseSlugs: ["overhead-press", "weighted-chin-ups", "bench-press", "seated-cable-row", "hammer-curls", "rope-tricep-pushdowns"] },
   { day: 6, label: "Lower A", exerciseSlugs: ["conventional-deadlift", "bulgarian-split-squats", "leg-curls", "leg-extension", "seated-calf-raises"] },
   { day: 7, label: "Total Rest", exerciseSlugs: [] },
-  { day: 8, label: "Push B", exerciseSlugs: ["handstand-push-up", "archer-push-ups", "standing-landmine-press", "flat-db-bench-press", "lateral-raises", "incline-skull-crushers"] },
+  { day: 8, label: "Push B", exerciseSlugs: ["handstand-push-up", "flat-db-bench-press", "standing-landmine-press", "archer-push-ups", "lateral-raises", "incline-skull-crushers"] },
   { day: 9, label: "Pull B", exerciseSlugs: ["muscle-up", "neutral-grip-pull-ups", "pendlay-barbell-rows", "straight-arm-lat-pulldown", "rear-delt-cable-flys", "incline-dumbbell-curls"] },
   { day: 10, label: "Legs B", exerciseSlugs: ["front-squat", "single-leg-rdl-dumbbell", "weighted-walking-lunges", "seated-leg-curl", "standing-calf-raises"] },
   { day: 11, label: "Total Rest", exerciseSlugs: [] },

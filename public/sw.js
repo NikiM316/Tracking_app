@@ -1,4 +1,4 @@
-const VERSION = "v3";
+const VERSION = "v4";
 const PRECACHE = `tracker-precache-${VERSION}`;
 const STATIC_CACHE = `tracker-static-${VERSION}`;
 const PAGE_CACHE = `tracker-pages-${VERSION}`;
@@ -45,6 +45,15 @@ self.addEventListener("activate", (event) => {
         await self.registration.navigationPreload.enable();
       }
       await self.clients.claim();
+      const windows = await self.clients.matchAll({ type: "window" });
+      await Promise.all(
+        windows.map((client) => {
+          if (typeof client.navigate !== "function") {
+            return undefined;
+          }
+          return client.navigate(client.url).catch(() => undefined);
+        }),
+      );
     })(),
   );
 });
@@ -130,29 +139,21 @@ async function cacheFirst(request, cacheName) {
 async function handleNavigation(event, url) {
   const cache = await caches.open(PAGE_CACHE);
   const key = pageKey(url);
-  const cached = await cache.match(key);
 
-  const networkPromise = (async () => {
+  try {
     const preloaded = await event.preloadResponse;
     const response = preloaded ?? (await fetch(event.request));
     if (response && response.ok) {
       await cache.put(key, response.clone());
-    }
-    return response;
-  })();
-
-  if (cached) {
-    void networkPromise.catch(() => {});
-    return cached;
-  }
-
-  try {
-    const response = await networkPromise;
-    if (response && response.ok) {
       return response;
     }
   } catch {
-    // Fall through to the offline page.
+    // Offline or a failed preload. Fall back to the last saved page.
+  }
+
+  const cached = await cache.match(key);
+  if (cached) {
+    return cached;
   }
 
   return (
